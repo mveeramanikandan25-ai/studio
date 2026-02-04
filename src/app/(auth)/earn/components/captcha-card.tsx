@@ -113,7 +113,7 @@ export function CaptchaCard() {
 
     setIsLoading(true);
 
-    updateDocumentNonBlocking(userRef, {
+    updateDocumentNonBlocking(userDocRef, {
         coins: increment(25),
     });
 
