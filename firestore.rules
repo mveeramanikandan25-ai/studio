@@ -73,10 +73,12 @@ service cloud.firestore {
 
     /**
      * Validates data for updating a user's root document.
-     * Enforces the immutability of the document's ID.
+     * Enforces the immutability of the document's ID field. It allows updates
+     * that don't include the 'id' field (partial updates) but prevents any
+     * attempt to change the 'id' if it is included.
      */
     function isValidUpdatedUserDoc() {
-      return request.resource.data.id == resource.data.id;
+      return !('id' in request.resource.data) || request.resource.data.id == resource.data.id;
     }
 
     /**
@@ -89,10 +91,12 @@ service cloud.firestore {
 
     /**
      * Validates data for updating a document in a user's subcollection.
-     * Enforces the immutability of the internal userId reference.
+     * Enforces the immutability of the internal userId reference. It allows
+     * partial updates that don't include the 'userId' field but prevents any
+     * attempt to change it if it is included.
      */
     function isValidUpdatedChildDoc() {
-      return request.resource.data.userId == resource.data.userId;
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
     }
 
 
@@ -100,51 +104,40 @@ service cloud.firestore {
     // Collection Rules
     // --------------------------------------------------------------------------------
 
-    /**
-     * @description Controls access to a user's primary profile document.
-     * @path /users/{userId}
-     * @allow (get, update, delete) An authenticated user `USER_A` accessing their own document `/users/USER_A`.
-     * @allow (create) An authenticated user `USER_A` creating their own profile at `/users/USER_A`.
-     * @deny (list) Any user, including `USER_A`, trying to list documents in the `/users` collection.
-     * @deny (get) User `USER_B` trying to read `/users/USER_A`.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
-     */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
       allow create: if isOwner(userId) && isValidNewUserDoc(userId);
       allow update: if isExistingOwner(userId) && isValidUpdatedUserDoc();
       allow delete: if isExistingOwner(userId);
-    }
 
-    /**
-     * @description Controls access to a user's withdrawal history subcollection.
-     * @path /users/{userId}/withdrawals/{withdrawalId}
-     * @allow (get, list, create, update, delete) An authenticated user `USER_A` managing their own withdrawals at `/users/USER_A/withdrawals/...`.
-     * @deny (get, list, create, update, delete) User `USER_B` trying to access any document within `/users/USER_A/withdrawals`.
-     * @principle Enforces strict path-based ownership for all nested user data.
-     */
-    match /users/{userId}/withdrawals/{withdrawalId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidNewChildDoc(userId);
-      allow update: if isExistingOwner(userId) && isValidUpdatedChildDoc();
-      allow delete: if isExistingOwner(userId);
-    }
+      /**
+       * @description Controls access to a user's withdrawal history subcollection.
+       * @path /users/{userId}/withdrawals/{withdrawalId}
+       * @allow (get, list, create, update, delete) An authenticated user `USER_A` managing their own withdrawals at `/users/USER_A/withdrawals/...`.
+       * @deny (get, list, create, update, delete) User `USER_B` trying to access any document within `/users/USER_A/withdrawals`.
+       * @principle Enforces strict path-based ownership for all nested user data.
+       */
+      match /withdrawals/{withdrawalId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidNewChildDoc(userId);
+        allow update: if isExistingOwner(userId) && isValidUpdatedChildDoc();
+        allow delete: if isExistingOwner(userId);
+      }
 
-    /**
-     * @description Controls access to a user's CAPTCHA submission history subcollection.
-     * @path /users/{userId}/captchaSubmissions/{captchaSubmissionId}
-     * @allow (get, list, create, update, delete) An authenticated user `USER_A` managing their own submissions at `/users/USER_A/captchaSubmissions/...`.
-     * @deny (get, list, create, update, delete) User `USER_B` trying to access any document within `/users/USER_A/captchaSubmissions`.
-     * @principle Enforces strict path-based ownership for all nested user data.
-     */
-    match /users/{userId}/captchaSubmissions/{captchaSubmissionId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidNewChildDoc(userId);
-      allow update: if isExistingOwner(userId) && isValidUpdatedChildDoc();
-      allow delete: if isExistingOwner(userId);
+      /**
+       * @description Controls access to a user's CAPTCHA submission history subcollection.
+       * @path /users/{userId}/captchaSubmissions/{captchaSubmissionId}
+       * @allow (get, list, create, update, delete) An authenticated user `USER_A` managing their own submissions at `/users/USER_A/captchaSubmissions/...`.
+       * @deny (get, list, create, update, delete) User `USER_B` trying to access any document within `/users/USER_A/captchaSubmissions`.
+       * @principle Enforces strict path-based ownership for all nested user data.
+       */
+      match /captchaSubmissions/{captchaSubmissionId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidNewChildDoc(userId);
+        allow update: if isExistingOwner(userId) && isValidUpdatedChildDoc();
+        allow delete: if isExistingOwner(userId);
+      }
     }
   }
 }
