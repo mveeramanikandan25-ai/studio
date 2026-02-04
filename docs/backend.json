@@ -19,11 +19,15 @@
           "description": "User's email address.",
           "format": "email"
         },
-        "username": {
+        "displayName": {
           "type": "string",
           "description": "User's display name or username."
         },
-        "totalCoins": {
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile picture."
+        },
+        "coins": {
           "type": "number",
           "description": "Total number of coins the user has earned."
         },
@@ -58,8 +62,8 @@
         "id",
         "googleId",
         "email",
-        "username",
-        "totalCoins",
+        "displayName",
+        "coins",
         "referralCode"
       ]
     },
@@ -153,7 +157,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {

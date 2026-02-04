@@ -36,15 +36,17 @@ export function GoogleSignInButton() {
       const userDoc = await getDoc(userRef);
 
       if (!userDoc.exists()) {
+        const googleProviderData = user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
         setDocumentNonBlocking(userRef, {
-            uid: user.uid,
+            id: user.uid,
+            googleId: googleProviderData?.uid || user.uid,
             email: user.email,
             displayName: user.displayName || 'User',
-            photoURL: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
+            photoURL: user.photoURL,
             coins: 100, // Signup bonus
             referralCode: generateReferralCode(5),
             createdAt: serverTimestamp(),
-        }, {});
+        }, { merge: true });
       }
 
       toast({

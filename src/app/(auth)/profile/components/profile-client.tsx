@@ -15,6 +15,7 @@ interface UserData {
     email: string;
     coins: number;
     referralCode: string;
+    photoURL?: string;
 }
 
 export function ProfileClient() {
@@ -50,7 +51,7 @@ export function ProfileClient() {
       <Card>
         <CardContent className="pt-6 flex flex-col items-center text-center space-y-4">
           <Avatar className="h-24 w-24 border-2 border-primary">
-            <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
+            <AvatarImage src={userData?.photoURL || user?.photoURL || ''} alt={userData?.displayName || user?.displayName || 'User'} />
             <AvatarFallback className="text-3xl">{getInitials(userData?.displayName || user?.displayName || 'U')}</AvatarFallback>
           </Avatar>
           <div className="space-y-1">
