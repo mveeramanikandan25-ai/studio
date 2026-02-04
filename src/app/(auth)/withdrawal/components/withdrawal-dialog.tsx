@@ -70,7 +70,7 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
     const { method, details } = values;
 
     const userRef = doc(firestore, 'users', user.uid);
-    const withdrawalsRef = collection(firestore, 'withdrawals');
+    const withdrawalsRef = collection(firestore, 'users', user.uid, 'withdrawals');
 
     try {
         const userDoc = await getDoc(userRef);

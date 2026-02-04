@@ -3,7 +3,6 @@
 import {
   collection,
   query,
-  where,
   orderBy,
   Timestamp,
 } from 'firebase/firestore';
@@ -17,6 +16,7 @@ export interface Withdrawal {
   method: 'UPI' | 'Google Play';
   status: 'Pending' | 'Success' | 'Failed';
   userId: string;
+  details: string;
 }
 
 export function useWithdrawalHistory() {
@@ -26,8 +26,7 @@ export function useWithdrawalHistory() {
   const withdrawalsQuery = useMemoFirebase(() => {
     if (!user) return null;
     return query(
-      collection(firestore, 'withdrawals'),
-      where('userId', '==', user.uid),
+      collection(firestore, 'users', user.uid, 'withdrawals'),
       orderBy('createdAt', 'desc')
     );
   }, [user, firestore]);

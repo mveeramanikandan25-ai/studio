@@ -85,15 +85,15 @@
           "type": "number",
           "description": "Amount of coins requested for withdrawal."
         },
-        "amountRupees": {
+        "amountInr": {
           "type": "number",
           "description": "Amount of Rupees to be received."
         },
-        "withdrawalMethod": {
+        "method": {
           "type": "string",
           "description": "Method of withdrawal (e.g., UPI, Google Play gift card)."
         },
-        "withdrawalDetails": {
+        "details": {
           "type": "string",
           "description": "Details required for the withdrawal method (e.g., UPI ID, email address)."
         },
@@ -101,7 +101,7 @@
           "type": "string",
           "description": "Status of the withdrawal request (e.g., Pending, Success, Failed)."
         },
-        "requestDate": {
+        "createdAt": {
           "type": "string",
           "description": "Timestamp indicating when the withdrawal request was made.",
           "format": "date-time"
@@ -113,13 +113,13 @@
         }
       },
       "required": [
-        "id",
         "userId",
         "amountCoins",
-        "withdrawalMethod",
-        "withdrawalDetails",
+        "amountInr",
+        "method",
+        "details",
         "status",
-        "requestDate"
+        "createdAt"
       ]
     },
     "CaptchaSubmission": {
@@ -156,8 +156,6 @@
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous",
       "google.com"
     ]
   },
