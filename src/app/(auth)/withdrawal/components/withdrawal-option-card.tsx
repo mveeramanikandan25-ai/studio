@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/use-auth';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import { Coins } from 'lucide-react';
 import { WithdrawalDialog } from './withdrawal-dialog';
 import { cn } from '@/lib/utils';
@@ -13,13 +13,21 @@ interface WithdrawalOption {
   inr: number;
 }
 
+interface UserData {
+    coins: number;
+}
+
 interface WithdrawalOptionCardProps {
   option: WithdrawalOption;
 }
 
 export function WithdrawalOptionCard({ option }: WithdrawalOptionCardProps) {
-  const { userData } = useAuth();
+  const { user } = useUser();
+  const firestore = useFirestore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
+  const { data: userData } = useDoc<UserData>(userDocRef);
   
   const hasEnoughCoins = userData ? userData.coins >= option.coins : false;
 

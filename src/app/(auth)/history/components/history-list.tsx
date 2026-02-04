@@ -1,6 +1,6 @@
 'use client';
 
-import { useWithdrawalHistory, Withdrawal } from '@/hooks/use-withdrawal-history';
+import { useWithdrawalHistory, type Withdrawal } from '@/hooks/use-withdrawal-history';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,7 +8,6 @@ import { Coins, Banknote, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function HistoryItem({ withdrawal }: { withdrawal: Withdrawal }) {
-  const isSuccess = withdrawal.status === 'Success';
   const isUpi = withdrawal.method === 'UPI';
 
   return (
@@ -25,7 +24,7 @@ function HistoryItem({ withdrawal }: { withdrawal: Withdrawal }) {
                 <div>
                     <p className="font-semibold">{withdrawal.method} Withdrawal</p>
                     <p className="text-sm text-muted-foreground">
-                        {new Date(withdrawal.createdAt.toDate()).toLocaleDateString()}
+                        {withdrawal.createdAt?.toDate().toLocaleDateString() ?? 'Just now'}
                     </p>
                 </div>
             </div>
@@ -38,7 +37,12 @@ function HistoryItem({ withdrawal }: { withdrawal: Withdrawal }) {
             </div>
         </CardContent>
         <CardFooter className="p-2 bg-muted/50">
-             <Badge className={cn('ml-auto', isSuccess ? 'bg-accent text-accent-foreground' : 'bg-secondary text-secondary-foreground')}>
+             <Badge className={cn(
+                'ml-auto', 
+                withdrawal.status === 'Success' && 'bg-accent text-accent-foreground hover:bg-accent/80',
+                withdrawal.status === 'Pending' && 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+                withdrawal.status === 'Failed' && 'bg-destructive text-destructive-foreground hover:bg-destructive/80'
+              )}>
                 {withdrawal.status}
             </Badge>
         </CardFooter>

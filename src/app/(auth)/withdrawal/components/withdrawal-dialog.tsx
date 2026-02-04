@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { requestWithdrawal } from '@/lib/actions';
-import { useAuth } from '@/hooks/use-auth';
+import { useUser, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { doc, getDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +27,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2 } from 'lucide-react';
+import { sendWithdrawalConfirmationEmail } from '@/ai/flows/withdrawal-email-confirmation';
+
 
 const formSchema = z.object({
   method: z.enum(['UPI', 'Google Play'], {
@@ -47,7 +49,8 @@ interface WithdrawalDialogProps {
 }
 
 export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialogProps) {
-  const { user } = useAuth();
+  const { user } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -62,31 +65,62 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
     setIsLoading(true);
+    
+    const { coins, inr } = option;
+    const { method, details } = values;
+
+    const userRef = doc(firestore, 'users', user.uid);
+    const withdrawalsRef = collection(firestore, 'withdrawals');
+
     try {
-      const result = await requestWithdrawal({
-        userId: user.uid,
-        amountCoins: option.coins,
-        amountInr: option.inr,
-        method: values.method,
-        details: values.details,
-      });
-      if (result.success) {
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists() || userDoc.data().coins < coins) {
+            throw new Error('Insufficient coins.');
+        }
+
+        // Decrement coins
+        updateDocumentNonBlocking(userRef, {
+            coins: increment(-coins),
+        });
+
+        // Create withdrawal record
+        const withdrawalDoc = await addDocumentNonBlocking(withdrawalsRef, {
+            userId: user.uid,
+            amountCoins: coins,
+            amountInr: inr,
+            method,
+            details,
+            status: 'Pending',
+            createdAt: serverTimestamp(),
+        });
+        
+        // Send confirmation email via GenAI flow
+        const userEmail = userDoc.data().email;
+        if (userEmail && withdrawalDoc) {
+          sendWithdrawalConfirmationEmail({
+            userEmail,
+            withdrawalAmount: coins,
+            redemptionMethod: method,
+            transactionId: withdrawalDoc.id,
+          });
+        }
+
         toast({
-          title: 'Request Submitted!',
-          description: result.message,
-          duration: 5000,
+            title: 'Request Submitted!',
+            description: 'Congratulations! Your reward will be received via your Gmail ID within 24-48 hours.',
+            duration: 5000,
         });
         onOpenChange(false);
         form.reset();
-      }
+
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Withdrawal Failed',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
-      });
+        toast({
+            variant: 'destructive',
+            title: 'Withdrawal Failed',
+            description: error instanceof Error ? error.message : 'An unknown error occurred.',
+        });
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   };
 

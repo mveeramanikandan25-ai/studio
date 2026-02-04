@@ -4,8 +4,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/hooks/use-auth';
-import { submitCaptcha } from '@/lib/actions';
+import { useUser, useFirestore, useDoc, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
+import { doc, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FullScreenAd } from '@/components/ui/full-screen-ad';
 import { Loader2, RefreshCw, Coins } from 'lucide-react';
@@ -20,13 +20,21 @@ function generateCaptchaText(length = 6) {
   return captcha;
 }
 
+interface UserData {
+    coins: number;
+}
+
 export function CaptchaCard() {
-  const { user, userData } = useAuth();
+  const { user } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [captchaText, setCaptchaText] = useState('');
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
+
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
+  const { data: userData } = useDoc<UserData>(userDocRef);
 
   const captchaImageUrl = useMemo(() => {
     if (!captchaText) return '';
@@ -44,7 +52,7 @@ export function CaptchaCard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || userInput.trim() === '') return;
+    if (!user || userInput.trim() === '' || !userDocRef) return;
     if (userInput.trim() !== captchaText) {
       toast({
         variant: 'destructive',
@@ -56,26 +64,19 @@ export function CaptchaCard() {
     }
 
     setIsLoading(true);
-    try {
-      const result = await submitCaptcha(user.uid);
-      if (result.success) {
-        toast({
-          title: `+${result.newCoins} Coins!`,
-          description: 'Your balance has been updated.',
-          className: 'bg-accent text-accent-foreground',
-        });
-        setIsAdOpen(true);
-      }
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
-      });
-    } finally {
-      setIsLoading(false);
-      handleRefresh();
-    }
+
+    updateDocumentNonBlocking(userDocRef, {
+        coins: increment(25),
+    });
+
+    toast({
+      title: `+25 Coins!`,
+      description: 'Your balance has been updated.',
+      className: 'bg-accent text-accent-foreground',
+    });
+    setIsAdOpen(true);
+    setIsLoading(false);
+    handleRefresh();
   };
   
   const handleAdClose = () => {

@@ -1,7 +1,6 @@
 'use client';
 
-import { useAuth } from '@/hooks/use-auth';
-import { auth } from '@/lib/firebase';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -9,11 +8,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Coins, Copy, LogOut } from 'lucide-react';
+import { doc } from 'firebase/firestore';
+
+interface UserData {
+    displayName: string;
+    email: string;
+    coins: number;
+    referralCode: string;
+}
 
 export function ProfileClient() {
-  const { user, userData } = useAuth();
+  const { user } = useUser();
+  const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
+  const { data: userData } = useDoc<UserData>(userDocRef);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -29,6 +41,7 @@ export function ProfileClient() {
   };
   
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   }
 
@@ -38,7 +51,7 @@ export function ProfileClient() {
         <CardContent className="pt-6 flex flex-col items-center text-center space-y-4">
           <Avatar className="h-24 w-24 border-2 border-primary">
             <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
-            <AvatarFallback className="text-3xl">{getInitials(user?.displayName || 'U')}</AvatarFallback>
+            <AvatarFallback className="text-3xl">{getInitials(userData?.displayName || user?.displayName || 'U')}</AvatarFallback>
           </Avatar>
           <div className="space-y-1">
             <h2 className="text-2xl font-bold font-headline">{userData?.displayName}</h2>

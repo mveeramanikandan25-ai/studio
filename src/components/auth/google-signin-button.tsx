@@ -2,14 +2,26 @@
 
 import { useState } from 'react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
+function generateReferralCode(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 export function GoogleSignInButton() {
   const [isLoading, setIsLoading] = useState(false);
+  const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -17,7 +29,24 @@ export function GoogleSignInButton() {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      const userRef = doc(firestore, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        setDocumentNonBlocking(userRef, {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || 'User',
+            photoURL: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
+            coins: 100, // Signup bonus
+            referralCode: generateReferralCode(5),
+            createdAt: serverTimestamp(),
+        }, {});
+      }
+
       toast({
         title: 'Success',
         description: 'Signed in successfully.',

@@ -1,16 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import {
   collection,
   query,
   where,
-  onSnapshot,
   orderBy,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { useAuth } from './use-auth';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 
 export interface Withdrawal {
   id: string;
@@ -18,45 +15,24 @@ export interface Withdrawal {
   amountInr: number;
   createdAt: Timestamp;
   method: 'UPI' | 'Google Play';
-  status: 'Pending' | 'Success';
+  status: 'Pending' | 'Success' | 'Failed';
   userId: string;
 }
 
 export function useWithdrawalHistory() {
-  const { user } = useAuth();
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useUser();
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const q = query(
-      collection(db, 'withdrawals'),
+  const withdrawalsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(
+      collection(firestore, 'withdrawals'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
+  }, [user, firestore]);
 
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-        const history: Withdrawal[] = [];
-        querySnapshot.forEach((doc) => {
-          history.push({ id: doc.id, ...doc.data() } as Withdrawal);
-        });
-        setWithdrawals(history);
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Error fetching withdrawal history:', error);
-        setLoading(false);
-      }
-    );
+  const { data: withdrawals, isLoading: loading } = useCollection<Withdrawal>(withdrawalsQuery);
 
-    return () => unsubscribe();
-  }, [user]);
-
-  return { withdrawals, loading };
+  return { withdrawals: withdrawals || [], loading };
 }
