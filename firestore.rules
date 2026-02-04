@@ -1,0 +1,150 @@
+/**
+ * This ruleset enforces a strict user-ownership security model for the CASHCHA application.
+ *
+ * Core Philosophy:
+ * The fundamental principle is that users have complete control over their own data, and no
+ * one else can access it. All data is considered private to the user who created it.
+ * There are no public collections or admin roles defined in this ruleset.
+ *
+ * Data Structure:
+ * The data is organized hierarchically. All user-specific information, including their
+ * profile, withdrawal history, and captcha submissions, is nested under a top-level
+ * `/users/{userId}` path. This structure ensures that ownership is clear and can be
+ * enforced directly through the document path.
+ *
+ * Key Security Decisions:
+ * - Strict Ownership: All rules are based on the authenticated user's UID (`request.auth.uid`)
+ *   matching the `{userId}` parameter in the document path.
+ * - No Public Data: All collections are private. Read and write access is restricted
+ *   to the document owner.
+ * - User Enumeration Disabled: Listing documents from the top-level `/users` collection
+ *   is explicitly disallowed to prevent scraping user data.
+ * - Relational Integrity: On document creation, rules validate that the internal `userId`
+ *   or `id` field matches the `userId` from the path, ensuring data consistency. On update,
+ *   these ownership fields are enforced as immutable.
+ *
+ * Denormalization for Authorization:
+ * This ruleset leverages path-based security, which is an implicit form of denormalization.
+ * The user's ID is part of the document path (e.g., `/users/USER_A/withdrawals/W_123`),
+ * making ownership checks extremely fast and efficient without needing to read other documents.
+ *
+ * Structural Segregation:
+ * The data model naturally segregates each user's data into its own document tree.
+ * This is a highly secure and performant pattern, as queries for a user's private data
+ * (like their withdrawals) are inherently scoped to their own subcollection.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary function for enforcing document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Verifies ownership for an existing document. Used for update and delete operations.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Validates data for creating a new user's root document.
+     * Ensures the document's internal ID matches the path.
+     */
+    function isValidNewUserDoc(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * Validates data for updating a user's root document.
+     * Enforces the immutability of the document's ID.
+     */
+    function isValidUpdatedUserDoc() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * Validates data for creating a new document in a user's subcollection.
+     * Ensures the document's internal userId reference matches the path.
+     */
+    function isValidNewChildDoc(userId) {
+      return request.resource.data.userId == userId;
+    }
+
+    /**
+     * Validates data for updating a document in a user's subcollection.
+     * Enforces the immutability of the internal userId reference.
+     */
+    function isValidUpdatedChildDoc() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+
+    // --------------------------------------------------------------------------------
+    // Collection Rules
+    // --------------------------------------------------------------------------------
+
+    /**
+     * @description Controls access to a user's primary profile document.
+     * @path /users/{userId}
+     * @allow (get, update, delete) An authenticated user `USER_A` accessing their own document `/users/USER_A`.
+     * @allow (create) An authenticated user `USER_A` creating their own profile at `/users/USER_A`.
+     * @deny (list) Any user, including `USER_A`, trying to list documents in the `/users` collection.
+     * @deny (get) User `USER_B` trying to read `/users/USER_A`.
+     * @principle Restricts access to a user's own data tree and prevents user enumeration.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidNewUserDoc(userId);
+      allow update: if isExistingOwner(userId) && isValidUpdatedUserDoc();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to a user's withdrawal history subcollection.
+     * @path /users/{userId}/withdrawals/{withdrawalId}
+     * @allow (get, list, create, update, delete) An authenticated user `USER_A` managing their own withdrawals at `/users/USER_A/withdrawals/...`.
+     * @deny (get, list, create, update, delete) User `USER_B` trying to access any document within `/users/USER_A/withdrawals`.
+     * @principle Enforces strict path-based ownership for all nested user data.
+     */
+    match /users/{userId}/withdrawals/{withdrawalId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidNewChildDoc(userId);
+      allow update: if isExistingOwner(userId) && isValidUpdatedChildDoc();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to a user's CAPTCHA submission history subcollection.
+     * @path /users/{userId}/captchaSubmissions/{captchaSubmissionId}
+     * @allow (get, list, create, update, delete) An authenticated user `USER_A` managing their own submissions at `/users/USER_A/captchaSubmissions/...`.
+     * @deny (get, list, create, update, delete) User `USER_B` trying to access any document within `/users/USER_A/captchaSubmissions`.
+     * @principle Enforces strict path-based ownership for all nested user data.
+     */
+    match /users/{userId}/captchaSubmissions/{captchaSubmissionId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidNewChildDoc(userId);
+      allow update: if isExistingOwner(userId) && isValidUpdatedChildDoc();
+      allow delete: if isExistingOwner(userId);
+    }
+  }
+}

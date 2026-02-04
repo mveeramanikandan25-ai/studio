@@ -1,0 +1,220 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the CASHCHA application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "googleId": {
+          "type": "string",
+          "description": "The unique identifier provided by Google Sign-In."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "username": {
+          "type": "string",
+          "description": "User's display name or username."
+        },
+        "totalCoins": {
+          "type": "number",
+          "description": "Total number of coins the user has earned."
+        },
+        "referralCode": {
+          "type": "string",
+          "description": "Unique referral code assigned to the user."
+        },
+        "referredBy": {
+          "type": "string",
+          "description": "Referral code of the user who referred this user, if any. (Relationship: User 1:N User)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was last updated.",
+          "format": "date-time"
+        },
+        "language": {
+          "type": "string",
+          "description": "User's preferred language."
+        },
+        "theme": {
+          "type": "string",
+          "description": "User's preferred theme (e.g., light, dark)."
+        }
+      },
+      "required": [
+        "id",
+        "googleId",
+        "email",
+        "username",
+        "totalCoins",
+        "referralCode"
+      ]
+    },
+    "Withdrawal": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Withdrawal",
+      "type": "object",
+      "description": "Represents a withdrawal request made by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the withdrawal entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Withdrawal)"
+        },
+        "amountCoins": {
+          "type": "number",
+          "description": "Amount of coins requested for withdrawal."
+        },
+        "amountRupees": {
+          "type": "number",
+          "description": "Amount of Rupees to be received."
+        },
+        "withdrawalMethod": {
+          "type": "string",
+          "description": "Method of withdrawal (e.g., UPI, Google Play gift card)."
+        },
+        "withdrawalDetails": {
+          "type": "string",
+          "description": "Details required for the withdrawal method (e.g., UPI ID, email address)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the withdrawal request (e.g., Pending, Success, Failed)."
+        },
+        "requestDate": {
+          "type": "string",
+          "description": "Timestamp indicating when the withdrawal request was made.",
+          "format": "date-time"
+        },
+        "processedDate": {
+          "type": "string",
+          "description": "Timestamp indicating when the withdrawal request was processed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "amountCoins",
+        "withdrawalMethod",
+        "withdrawalDetails",
+        "status",
+        "requestDate"
+      ]
+    },
+    "CaptchaSubmission": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CaptchaSubmission",
+      "type": "object",
+      "description": "Represents a single CAPTCHA submission by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CAPTCHA submission entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N CaptchaSubmission)"
+        },
+        "submissionTime": {
+          "type": "string",
+          "description": "Timestamp indicating when the CAPTCHA was submitted.",
+          "format": "date-time"
+        },
+        "rewardedCoins": {
+          "type": "number",
+          "description": "Number of coins rewarded for the CAPTCHA submission."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "submissionTime",
+        "rewardedCoins"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. User ID is used for path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/withdrawals/{withdrawalId}",
+        "definition": {
+          "entityName": "Withdrawal",
+          "schema": {
+            "$ref": "#/backend/entities/Withdrawal"
+          },
+          "description": "Stores withdrawal requests made by users. Uses path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "withdrawalId",
+              "description": "The unique identifier for the withdrawal."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/captchaSubmissions/{captchaSubmissionId}",
+        "definition": {
+          "entityName": "CaptchaSubmission",
+          "schema": {
+            "$ref": "#/backend/entities/CaptchaSubmission"
+          },
+          "description": "Stores CAPTCHA submissions made by users. Uses path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "captchaSubmissionId",
+              "description": "The unique identifier for the CAPTCHA submission."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the CASHCHA application's features, focusing on user authentication, CAPTCHA rewards, withdrawals, and profile management. To ensure security, scalability, and ease of debugging, the structure adheres to the principles of Authorization Independence (CRITICAL), Clarity of Intent (Debuggability), DBAC (No Custom Claims), and QAPs (Rules are not Filters).\n\n1.  **Authorization Independence:**\n    *   **Users:** User data is stored in `/users/{userId}`. Access control is based on the `userId` path parameter, enabling straightforward ownership-based security rules. There are no authorization dependencies.\n    *   **Withdrawals:** Withdrawal documents are stored in a subcollection `/users/{userId}/withdrawals/{withdrawalId}`. This utilizes path-based ownership. This structure intrinsically links each withdrawal to a specific user, making security rules simple and efficient. This approach ensures that listing withdrawals for a given user is straightforward and secure.\n    *   **CaptchaSubmissions:** Captcha submissions are stored in `/users/{userId}/captchaSubmissions/{captchaSubmissionId}`. Similar to withdrawals, this maintains a clear parent-child relationship, ensuring each submission is directly tied to a user.\n\n2.  **Clarity of Intent:** The structure explicitly represents the relationships between entities. For example, withdrawals and CAPTCHA submissions are subcollections of users, clearly indicating ownership.\n\n3.  **DBAC (No Custom Claims):** User roles are managed through the existence of documents and path-based ownership. Access control is primarily based on `request.auth.uid` and the document path.\n\n4.  **QAPs (Rules are not Filters):** The path-based ownership and structural segregation enable secure list operations. For example, listing withdrawals is scoped to the user who owns them. Also, there are no public collections.\n\nThis design ensures a balance between data integrity, security, and scalability, aligning with the application's core requirements."
+  }
+}
