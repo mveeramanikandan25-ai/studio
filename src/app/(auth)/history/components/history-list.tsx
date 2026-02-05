@@ -29,7 +29,7 @@ function HistoryItem({ withdrawal }: { withdrawal: Withdrawal }) {
                 </div>
             </div>
             <div className="text-right">
-                <p className="font-bold text-lg">₹ {withdrawal.amountInr}</p>
+                <p className="font-bold text-lg">INR {withdrawal.amountInr}</p>
                 <div className="flex items-center justify-end gap-1 text-sm text-muted-foreground">
                     <Coins className="h-3 w-3" />
                     <span>{withdrawal.amountCoins.toLocaleString()}</span>

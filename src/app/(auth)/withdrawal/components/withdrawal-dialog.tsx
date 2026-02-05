@@ -31,7 +31,7 @@ import { sendWithdrawalConfirmationEmail } from '@/ai/flows/withdrawal-email-con
 
 
 const formSchema = z.object({
-  method: z.enum(['UPI', 'Google Play'], {
+  method: z.enum(['UPI', 'Google Play', 'Amazon Gift Card'], {
     required_error: 'You need to select a redemption method.',
   }),
   details: z.string().min(1, 'This field is required.'),
@@ -128,7 +128,7 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Withdraw ₹ {option.inr}</DialogTitle>
+          <DialogTitle>Withdraw INR {option.inr}</DialogTitle>
           <DialogDescription>
             You are about to redeem {option.coins.toLocaleString()} coins. Please provide your details.
           </DialogDescription>
@@ -158,6 +158,12 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
                           <RadioGroupItem value="Google Play" />
                         </FormControl>
                         <FormLabel className="font-normal">Google Play Gift Card</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="Amazon Gift Card" />
+                        </FormControl>
+                        <FormLabel className="font-normal">Amazon Gift Card</FormLabel>
                       </FormItem>
                     </RadioGroup>
                   </FormControl>

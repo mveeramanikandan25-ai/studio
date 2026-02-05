@@ -13,7 +13,7 @@ export interface Withdrawal {
   amountCoins: number;
   amountInr: number;
   createdAt: Timestamp;
-  method: 'UPI' | 'Google Play';
+  method: 'UPI' | 'Google Play' | 'Amazon Gift Card';
   status: 'Pending' | 'Success' | 'Failed';
   userId: string;
   details: string;
