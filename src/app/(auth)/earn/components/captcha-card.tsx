@@ -102,7 +102,7 @@ function generateImageCaptcha(): ImageCaptcha {
     const images = [];
     const correctIndices: number[] = [];
     const numImages = 9;
-    const numCorrect = Math.floor(Math.random() * 3) + 2; // Generate 2, 3, or 4 correct images
+    const numCorrect = Math.floor(Math.random() * 2) + 3; // Generate 3 or 4 correct images
 
     const allIndices = Array.from({ length: numImages }, (_, i) => i);
     
@@ -169,7 +169,7 @@ export function CaptchaCard() {
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
   const { data: userData } = useDoc<UserData>(userDocRef);
 
-  const generateNewChallenge = useCallback(() => {
+  const generateNewChallenge = useCallback((resetStatus = true) => {
     const captchaTypes: CaptchaType[] = ['text', 'math', 'image'];
     const randomType = captchaTypes[Math.floor(Math.random() * captchaTypes.length)];
     
@@ -191,7 +191,9 @@ export function CaptchaCard() {
     setSelectedImages([]);
     setInitialTimer(duration);
     setTimer(duration);
-    setSubmissionStatus(null);
+    if (resetStatus) {
+      setSubmissionStatus(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -304,7 +306,7 @@ export function CaptchaCard() {
             setIsAdOpen(true);
             setIsLoading(false);
             setRetries(3); // Reset retries
-            generateNewChallenge();
+            generateNewChallenge(false);
         }, 1500);
     } else {
         handleFailure();
@@ -313,6 +315,7 @@ export function CaptchaCard() {
   
   const handleAdClose = () => {
     setIsAdOpen(false);
+    setSubmissionStatus(null);
   };
   
   const captchaImageUrl = useMemo(() => {
@@ -510,3 +513,5 @@ export function CaptchaCard() {
     </>
   );
 }
+
+    
