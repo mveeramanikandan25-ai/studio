@@ -17,6 +17,15 @@ export default function Home() {
     }
   }, [user, isUserLoading, router]);
 
+  useEffect(() => {
+    // On page load, check for a referral code in the URL and store it.
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+      sessionStorage.setItem('referralCode', refCode);
+    }
+  }, []);
+
   // Show loader while checking for an existing session.
   // Also show loader if user is found, to hide the brief moment before redirect.
   if (isUserLoading || user) {
@@ -55,3 +64,4 @@ export default function Home() {
     </main>
   );
 }
+    

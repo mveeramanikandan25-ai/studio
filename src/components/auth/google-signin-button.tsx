@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, updateDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, collection, query, where, getDocs, increment } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 function generateReferralCode(length: number): string {
@@ -41,22 +41,51 @@ export function GoogleSignInButton() {
         const userDoc = await getDoc(userRef);
 
         if (!userDoc.exists()) {
+            const referralCode = sessionStorage.getItem('referralCode');
+            let referredByCode: string | null = null;
+            let signupBonus = 100;
+
+            if (referralCode) {
+                const usersRef = collection(firestore, 'users');
+                const q = query(usersRef, where('referralCode', '==', referralCode));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    const referrerDoc = querySnapshot.docs[0];
+                    if(referrerDoc.id !== user.uid) { // Prevent user from referring themselves
+                        const referrerRef = doc(firestore, 'users', referrerDoc.id);
+                        
+                        updateDocumentNonBlocking(referrerRef, {
+                            coins: increment(100)
+                        });
+
+                        signupBonus = 200; // 100 standard + 100 referral
+                        referredByCode = referralCode;
+                        sessionStorage.removeItem('referralCode'); // Clean up
+
+                        toast({ title: 'Referral success!', description: 'You and your friend both received 100 bonus coins.' });
+                    }
+                }
+            }
+
             await setDoc(userRef, {
                 id: user.uid,
                 googleId: user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID)?.uid || user.uid,
                 email: user.email,
                 displayName: user.displayName || 'User',
                 photoURL: user.photoURL,
-                coins: 100,
-                referralCode: generateReferralCode(5),
-                referredBy: null,
+                coins: signupBonus,
+                referralCode: generateReferralCode(6),
+                referredBy: referredByCode,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 language: 'en',
                 theme: 'system',
-            }, { merge: true });
+            });
             
-            toast({ title: 'Welcome!', description: 'You received a 100 coin signup bonus.' });
+            if (!referredByCode) {
+                 toast({ title: 'Welcome!', description: `You received a ${signupBonus} coin signup bonus.` });
+            }
         } else {
             toast({ title: 'Welcome back!' });
         }
@@ -122,3 +151,4 @@ export function GoogleSignInButton() {
     </Button>
   );
 }
+    

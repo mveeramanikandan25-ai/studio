@@ -87,7 +87,7 @@ service cloud.firestore {
      */
     function areUserImmutableFieldsUnchanged() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['id', 'googleId', 'referralCode', 'createdAt']) == false;
+        .hasAny(['id', 'googleId', 'referralCode', 'createdAt', 'referredBy']) == false;
     }
 
     /**
@@ -98,6 +98,19 @@ service cloud.firestore {
         .hasAny(['id', 'userId', 'createdAt']) == false;
     }
 
+    /**
+     * Allows a coin balance to be updated for a referral bonus.
+     * WARNING: This rule is not fully secure for a production environment.
+     * It allows any authenticated user to increment another user's coin balance by 100.
+     * A malicious actor could exploit this by repeatedly creating users to award themselves coins.
+     * For a production app, this logic should be moved to a secure backend (e.g., Cloud Function).
+     */
+    function isGettingReferralBonus() {
+      let isUpdatingCoinsOnly = request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coins']);
+      let isIncrementingBy100 = request.resource.data.coins == resource.data.coins + 100;
+      return isSignedIn() && isUpdatingCoinsOnly && isIncrementingBy100;
+    }
+
 
     // --------------------------------------------------------------------------------
     // Collection Rules
@@ -105,9 +118,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if false; // prevent user enumeration
       allow create: if isOwner(userId) && isValidNewUserDoc(userId);
-      allow update: if isExistingOwner(userId) && areUserImmutableFieldsUnchanged();
+      allow update: if (isExistingOwner(userId) && areUserImmutableFieldsUnchanged()) || isGettingReferralBonus();
       allow delete: if isExistingOwner(userId);
 
       /**
@@ -140,3 +153,4 @@ service cloud.firestore {
     }
   }
 }
+    
