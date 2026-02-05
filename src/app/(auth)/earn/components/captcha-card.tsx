@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,16 +8,130 @@ import { useUser, useFirestore, useDoc, updateDocumentNonBlocking, useMemoFireba
 import { doc, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FullScreenAd } from '@/components/ui/full-screen-ad';
-import { Loader2, RefreshCw, Coins } from 'lucide-react';
+import { Loader2, RefreshCw, Coins, Check } from 'lucide-react';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
-function generateCaptchaText(length = 6) {
+
+// --- CAPTCHA Types and Generators ---
+
+type CaptchaType = 'text' | 'math' | 'image';
+
+interface TextCaptcha {
+  type: 'text';
+  text: string;
+}
+
+interface MathCaptcha {
+  type: 'math';
+  question: string;
+  answer: number;
+}
+
+const IMAGE_CATEGORIES = {
+    car: ['car', 'auto', 'sedan', 'suv'],
+    bicycle: ['bicycle', 'bike', 'cyclist', 'biking'],
+    boat: ['boat', 'ship', 'yacht', 'sail'],
+    mountain: ['mountain', 'peak', 'range', 'alps'],
+    beach: ['beach', 'coast', 'shore', 'sand'],
+    flower: ['flower', 'bloom', 'petal', 'floral'],
+};
+
+type ImageCategory = keyof typeof IMAGE_CATEGORIES;
+
+interface ImageCaptcha {
+  type: 'image';
+  prompt: ImageCategory;
+  images: {
+    src: string;
+    key: string;
+  }[];
+  correctIndices: number[];
+}
+
+type CaptchaChallenge = TextCaptcha | MathCaptcha | ImageCaptcha;
+
+function generateTextCaptcha(length = 6): TextCaptcha {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let captcha = '';
+  let captchaText = '';
   for (let i = 0; i < length; i++) {
-    captcha += chars.charAt(Math.floor(Math.random() * chars.length));
+    captchaText += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return captcha;
+  return { type: 'text', text: captchaText };
+}
+
+function generateMathCaptcha(): MathCaptcha {
+    const operators = ['+', '-', '×'];
+    const operator = operators[Math.floor(Math.random() * operators.length)];
+    let num1 = Math.floor(Math.random() * 10) + 1;
+    let num2 = Math.floor(Math.random() * 10) + 1;
+    let question = '';
+    let answer = 0;
+
+    switch (operator) {
+        case '+':
+            answer = num1 + num2;
+            question = `${num1} + ${num2} = ?`;
+            break;
+        case '-':
+            if (num1 < num2) {
+                [num1, num2] = [num2, num1];
+            }
+            answer = num1 - num2;
+            question = `${num1} - ${num2} = ?`;
+            break;
+        case '×':
+            num1 = Math.floor(Math.random() * 8) + 2;
+            num2 = Math.floor(Math.random() * 8) + 2;
+            answer = num1 * num2;
+            question = `${num1} × ${num2} = ?`;
+            break;
+    }
+    return { type: 'math', question, answer };
+}
+
+function generateImageCaptcha(): ImageCaptcha {
+    const categories = Object.keys(IMAGE_CATEGORIES) as ImageCategory[];
+    const prompt = categories[Math.floor(Math.random() * categories.length)];
+    const correctKeywords = IMAGE_CATEGORIES[prompt];
+    
+    const images = [];
+    const correctIndices: number[] = [];
+    const numImages = 9;
+    const numCorrect = Math.floor(Math.random() * 3) + 3;
+
+    const allIndices = Array.from({ length: numImages }, (_, i) => i);
+    
+    for (let i = allIndices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
+    }
+
+    for(let i=0; i<numCorrect; i++){
+        correctIndices.push(allIndices[i]);
+    }
+    correctIndices.sort((a,b) => a-b);
+
+
+    for (let i = 0; i < numImages; i++) {
+        const isCorrect = correctIndices.includes(i);
+        let seed;
+        if (isCorrect) {
+            seed = correctKeywords[Math.floor(Math.random() * correctKeywords.length)];
+        } else {
+            const otherCategories = categories.filter(c => c !== prompt);
+            const randomCategory = otherCategories[Math.floor(Math.random() * otherCategories.length)];
+            const randomKeywords = IMAGE_CATEGORIES[randomCategory];
+            seed = randomKeywords[Math.floor(Math.random() * randomKeywords.length)];
+        }
+        const key = `${seed}-${i}-${Date.now()}`;
+        images.push({
+            src: `https://picsum.photos/seed/${key}/200/200`,
+            key: key,
+        });
+    }
+
+    return { type: 'image', prompt, images, correctIndices };
 }
 
 interface UserData {
@@ -28,23 +142,117 @@ export function CaptchaCard() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [captchaText, setCaptchaText] = useState('');
+  const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [userInput, setUserInput] = useState('');
+  const [selectedImages, setSelectedImages] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
-  const [captchaKey, setCaptchaKey] = useState(0); // To force re-render captcha
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
   const { data: userData } = useDoc<UserData>(userDocRef);
 
-  const captchaImageUrl = useMemo(() => {
-    if (!captchaText || typeof window === 'undefined') return '';
+  const generateNewChallenge = useCallback(() => {
+    const captchaTypes: CaptchaType[] = ['text', 'math', 'image'];
+    const randomType = captchaTypes[Math.floor(Math.random() * captchaTypes.length)];
+    
+    let newChallenge: CaptchaChallenge;
+    switch (randomType) {
+      case 'text':
+        newChallenge = generateTextCaptcha();
+        break;
+      case 'math':
+        newChallenge = generateMathCaptcha();
+        break;
+      case 'image':
+        newChallenge = generateImageCaptcha();
+        break;
+    }
+    setChallenge(newChallenge);
+    setUserInput('');
+    setSelectedImages([]);
+  }, []);
 
-    // Dynamically get theme colors
+  useEffect(() => {
+    generateNewChallenge();
+  }, [generateNewChallenge]);
+
+  const handleRefresh = () => {
+    generateNewChallenge();
+  };
+  
+  const handleImageSelect = (index: number) => {
+    setSelectedImages(prev => 
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !challenge || !userDocRef) return;
+
+    let isCorrect = false;
+    switch (challenge.type) {
+        case 'text':
+            if (userInput.trim() === '') {
+                toast({ variant: 'destructive', title: 'Empty Input', description: 'Please enter the CAPTCHA.' });
+                return;
+            }
+            isCorrect = userInput.trim().toLowerCase() === challenge.text.toLowerCase();
+            break;
+        case 'math':
+            if (userInput.trim() === '') {
+                toast({ variant: 'destructive', title: 'Empty Input', description: 'Please enter your answer.' });
+                return;
+            }
+            isCorrect = parseInt(userInput, 10) === challenge.answer;
+            break;
+        case 'image':
+            if (selectedImages.length === 0) {
+                toast({ variant: 'destructive', title: 'No images selected', description: 'Please select the matching images.' });
+                return;
+            }
+            const sortedSelected = [...selectedImages].sort((a, b) => a - b);
+            isCorrect = JSON.stringify(sortedSelected) === JSON.stringify(challenge.correctIndices);
+            break;
+    }
+
+    if (!isCorrect) {
+      toast({
+        variant: 'destructive',
+        title: 'Incorrect CAPTCHA',
+        description: 'Please try again.',
+      });
+      handleRefresh();
+      return;
+    }
+
+    setIsLoading(true);
+
+    updateDocumentNonBlocking(userDocRef, {
+        coins: increment(25),
+    });
+
+    toast({
+      title: `+25 Coins!`,
+      description: 'Your balance has been updated.',
+      className: 'bg-primary text-primary-foreground',
+    });
+    setIsAdOpen(true);
+    setIsLoading(false);
+    handleRefresh();
+  };
+  
+  const handleAdClose = () => {
+    setIsAdOpen(false);
+  };
+  
+  const captchaImageUrl = useMemo(() => {
+    if (!challenge || challenge.type !== 'text' || typeof window === 'undefined') return '';
+
     const computedStyle = getComputedStyle(document.documentElement);
     const primaryColor = `hsl(${computedStyle.getPropertyValue('--primary').trim()})`;
     
-    const chars = captchaText.split('').map((char, index) => {
+    const chars = challenge.text.split('').map((char, index) => {
         const rotation = Math.random() * 20 - 10;
         const translateY = Math.random() * 6 - 3;
         const scale = Math.random() * 0.2 + 0.9;
@@ -81,49 +289,99 @@ export function CaptchaCard() {
       </svg>
     `;
     return `data:image/svg+xml;base64,${window.btoa(svg)}`;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captchaText, captchaKey]);
-  
-  useEffect(() => {
-    setCaptchaText(generateCaptchaText());
-  }, [captchaKey]);
+  }, [challenge]);
 
-  const handleRefresh = () => {
-    setCaptchaKey(prev => prev + 1);
-    setUserInput('');
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || userInput.trim() === '' || !userDocRef) return;
-    if (userInput.trim().toLowerCase() !== captchaText.toLowerCase()) {
-      toast({
-        variant: 'destructive',
-        title: 'Incorrect CAPTCHA',
-        description: 'Please try again.',
-      });
-      handleRefresh();
-      return;
+  const renderChallenge = () => {
+    if (!challenge) {
+        return (
+            <div className="h-[270px] flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
     }
-
-    setIsLoading(true);
-
-    updateDocumentNonBlocking(userDocRef, {
-        coins: increment(25),
-    });
-
-    toast({
-      title: `+25 Coins!`,
-      description: 'Your balance has been updated.',
-      className: 'bg-primary text-primary-foreground',
-    });
-    setIsAdOpen(true);
-    setIsLoading(false);
-    handleRefresh();
-  };
-  
-  const handleAdClose = () => {
-    setIsAdOpen(false);
+    
+    switch (challenge.type) {
+        case 'text':
+            return (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-center rounded-lg bg-muted p-4">
+                        {captchaImageUrl ? (
+                            <Image src={captchaImageUrl} alt="CAPTCHA" width={300} height={100} className="rounded-md" />
+                        ) : (
+                            <div className="h-[100px] w-[300px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Input
+                            type="text"
+                            placeholder="Enter CAPTCHA here"
+                            value={userInput}
+                            onChange={(e) => setUserInput(e.target.value)}
+                            disabled={isLoading}
+                            required
+                            autoCapitalize="off"
+                            autoCorrect="off"
+                            className="text-center tracking-widest font-mono"
+                        />
+                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading}>
+                            <RefreshCw className="h-5 w-5" />
+                        </Button>
+                    </div>
+                </div>
+            );
+        case 'math':
+            return (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-center rounded-lg bg-muted p-4 h-[100px]">
+                        <p className="text-4xl font-bold font-mono tracking-wider text-primary">{challenge.question}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Input
+                            type="number"
+                            placeholder="Your answer"
+                            value={userInput}
+                            onChange={(e) => setUserInput(e.target.value)}
+                            disabled={isLoading}
+                            required
+                            className="text-center tracking-widest font-mono"
+                        />
+                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading}>
+                            <RefreshCw className="h-5 w-5" />
+                        </Button>
+                    </div>
+                </div>
+            );
+        case 'image':
+            return (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <p className="text-center text-lg">Select all images with a <span className="font-bold text-primary capitalize">{challenge.prompt}</span></p>
+                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading}>
+                            <RefreshCw className="h-5 w-5" />
+                        </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                        {challenge.images.map((image, index) => (
+                            <div key={image.key} className="relative cursor-pointer group" onClick={() => handleImageSelect(index)}>
+                                <Image src={image.src} alt={`captcha image ${index + 1}`} width={100} height={100} className="rounded-md w-full h-auto aspect-square object-cover" />
+                                <div className={cn(
+                                    "absolute inset-0 rounded-md transition-all",
+                                    selectedImages.includes(index)
+                                        ? "bg-primary/50 border-4 border-primary"
+                                        : "bg-black/20 opacity-0 group-hover:opacity-100"
+                                )}>
+                                    {selectedImages.includes(index) && (
+                                        <div className="flex items-center justify-center h-full">
+                                            <Check className="h-8 w-8 text-primary-foreground" />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+    }
   };
 
   return (
@@ -140,34 +398,7 @@ export function CaptchaCard() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-center rounded-lg bg-muted p-4">
-              {captchaImageUrl ?
-                <Image
-                  src={captchaImageUrl}
-                  alt="CAPTCHA"
-                  width={300}
-                  height={100}
-                  className="rounded-md"
-                />
-                : <div className="h-[100px] w-[300px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-              }
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="text"
-                placeholder="Enter CAPTCHA here"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                disabled={isLoading}
-                required
-                autoCapitalize="off"
-                autoCorrect="off"
-                className="text-center tracking-widest font-mono"
-              />
-              <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading}>
-                <RefreshCw className="h-5 w-5" />
-              </Button>
-            </div>
+            {renderChallenge()}
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full" disabled={isLoading}>
