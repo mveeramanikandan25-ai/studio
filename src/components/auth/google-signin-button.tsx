@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { GoogleAuthProvider, signInWithRedirect } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { initiateGoogleSignInRedirect, useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -10,22 +9,12 @@ import { Loader2 } from 'lucide-react';
 export function GoogleSignInButton() {
   const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
-  const { toast } = useToast();
 
-  const handleSignIn = async () => {
+  const handleSignIn = () => {
     setIsLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithRedirect(auth, provider);
-    } catch (error) {
-      console.error('Google Sign-In Error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Something went wrong.',
-        description: 'There was a problem with your sign-in request.',
-      });
-      setIsLoading(false);
-    }
+    // This function will cause a page redirect, so we don't need to worry
+    // about unsetting isLoading as the page will navigate away.
+    initiateGoogleSignInRedirect(auth);
   };
 
   const GoogleIcon = () => (
