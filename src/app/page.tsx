@@ -4,7 +4,7 @@ import { GoogleSignInButton } from '@/components/auth/google-signin-button';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Coins } from 'lucide-react';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -30,7 +30,7 @@ export default function Home() {
   // Also show loader if user is found, to hide the brief moment before redirect.
   if (isUserLoading || user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
       </div>
     );
@@ -38,18 +38,27 @@ export default function Home() {
 
   // Only show sign-in page if no user and not loading.
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-8 text-center">
-      <div className="flex flex-col items-center space-y-6">
-        <div className="text-5xl font-bold tracking-tighter text-primary sm:text-6xl md:text-7xl font-headline">
-          CASHCHA
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 p-8 text-center text-white">
+      <div className="absolute -top-1/4 -right-1/4 h-1/2 w-1/2 rounded-full bg-primary/10 blur-3xl animate-fade-in" />
+      <div className="absolute -bottom-1/4 -left-1/4 h-1/2 w-1/2 rounded-full bg-destructive/10 blur-3xl animate-fade-in animation-delay-200" />
+      
+      <div className="relative z-10 flex flex-col items-center space-y-8">
+        <div className="flex items-center gap-4 animate-fade-in-down">
+          <Coins className="h-16 w-16 text-primary drop-shadow-[0_0_15px_hsl(var(--primary))]" />
+          <h1 className="text-6xl font-bold tracking-tighter text-white sm:text-7xl md:text-8xl font-headline">
+            CASHCHA
+          </h1>
         </div>
-        <p className="max-w-md text-muted-foreground sm:text-lg">
+        
+        <p className="max-w-md text-slate-300 sm:text-lg animate-fade-in-up animation-delay-200">
           Get rewarded for your time. Solve CAPTCHAs, earn coins, and redeem for real cash.
         </p>
-        <div className="w-full max-w-xs">
+
+        <div className="w-full max-w-xs animate-fade-in-up animation-delay-400">
           <GoogleSignInButton />
         </div>
-        <p className="px-8 text-center text-sm text-muted-foreground">
+
+        <p className="px-8 text-center text-xs text-slate-400 animate-fade-in-up animation-delay-600">
           By continuing, you agree to our{' '}
           <a href="/terms" className="underline underline-offset-4 hover:text-primary">
             Terms of Service
@@ -64,4 +73,3 @@ export default function Home() {
     </main>
   );
 }
-    
