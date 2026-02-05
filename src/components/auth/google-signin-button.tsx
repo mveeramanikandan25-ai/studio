@@ -1,20 +1,88 @@
 'use client';
 
 import { useState } from 'react';
-import { initiateGoogleSignInRedirect, useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+
+function generateReferralCode(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 export function GoogleSignInButton() {
   const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
+  const firestore = useFirestore();
+  const router = useRouter();
+  const { toast } = useToast();
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     setIsLoading(true);
-    // This function will cause a page redirect, so we don't need to worry
-    // about unsetting isLoading as the page will navigate away.
-    initiateGoogleSignInRedirect(auth);
+    if (!auth || !firestore) {
+        toast({ variant: "destructive", title: "Firebase not initialized." });
+        setIsLoading(false);
+        return;
+    }
+    const provider = new GoogleAuthProvider();
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        const userRef = doc(firestore, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
+
+        if (!userDoc.exists()) {
+            await setDoc(userRef, {
+                id: user.uid,
+                googleId: user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID)?.uid || user.uid,
+                email: user.email,
+                displayName: user.displayName || 'User',
+                photoURL: user.photoURL,
+                coins: 100,
+                referralCode: generateReferralCode(5),
+                referredBy: null,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                language: 'en',
+                theme: 'system',
+            }, { merge: true });
+            
+            toast({ title: 'Welcome!', description: 'You received a 100 coin signup bonus.' });
+        } else {
+            toast({ title: 'Welcome back!' });
+        }
+        
+        router.replace('/earn');
+
+    } catch (error: any) {
+        setIsLoading(false);
+        if (error.code === 'auth/popup-blocked') {
+            toast({
+                variant: 'destructive',
+                title: 'Sign-in popup blocked',
+                description: 'Please allow popups for this site and try again.',
+            });
+        } else if (error.code === 'auth/cancelled-popup-request') {
+            // User closed the popup, do nothing.
+        }
+        else {
+            console.error('Google Sign-In Error:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Sign-in failed',
+                description: 'An unexpected error occurred. Please try again.',
+            });
+        }
+    }
   };
 
   const GoogleIcon = () => (

@@ -1,100 +1,25 @@
 'use client';
 
 import { GoogleSignInButton } from '@/components/auth/google-signin-button';
-import { useUser, useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
-
-function generateReferralCode(length: number): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
-  const auth = useAuth();
-  const firestore = useFirestore();
-  const { toast } = useToast();
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
-
 
   useEffect(() => {
-    async function processRedirect() {
-      if (!auth || !firestore) return;
-
-      try {
-        const result = await getRedirectResult(auth);
-        
-        // If there's a result, it means we just came from a redirect.
-        if (result && result.user) {
-          const user = result.user;
-          const userRef = doc(firestore, 'users', user.uid);
-          const userDoc = await getDoc(userRef);
-
-          if (!userDoc.exists()) {
-            // New user logic
-            const googleProviderData = user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
-            setDocumentNonBlocking(userRef, {
-                id: user.uid,
-                googleId: googleProviderData?.uid || user.uid,
-                email: user.email,
-                displayName: user.displayName || 'User',
-                photoURL: user.photoURL,
-                coins: 100, // Signup bonus
-                referralCode: generateReferralCode(5),
-                referredBy: null,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                language: 'en',
-                theme: 'system',
-            }, { merge: true });
-            
-            toast({
-              title: 'Welcome!',
-              description: 'You received a 100 coin signup bonus.',
-            });
-          } else {
-            // Existing user
-            toast({
-              title: 'Welcome back!',
-              description: 'Signed in successfully.',
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Google Sign-In Redirect Error:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Sign-in failed',
-          description: 'There was a problem with your sign-in request.',
-        });
-      } finally {
-        setIsProcessingRedirect(false);
-      }
-    }
-    processRedirect();
-  }, [auth, firestore, toast]);
-
-  useEffect(() => {
-    // Once the user object is available (and we're not still processing the redirect), navigate.
-    if (!isUserLoading && user && !isProcessingRedirect) {
+    // If we have a user from an existing session, redirect to the app.
+    if (!isUserLoading && user) {
       router.replace('/earn');
     }
-  }, [user, isUserLoading, router, isProcessingRedirect]);
+  }, [user, isUserLoading, router]);
 
-  // Show loader while checking auth state or processing redirect.
-  // Also show loader if user is logged in, to mask the brief moment before redirect.
-  if (isUserLoading || isProcessingRedirect || user) {
+  // Show loader while checking for an existing session.
+  // Also show loader if user is found, to hide the brief moment before redirect.
+  if (isUserLoading || user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
