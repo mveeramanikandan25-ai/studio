@@ -138,7 +138,7 @@ export function GoogleSignInButton() {
   return (
     <Button
       variant="outline"
-      className="w-full h-12 text-base border-white/20 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 hover:text-white"
+      className="w-full h-12 text-base border-primary/30 bg-primary/10 text-foreground backdrop-blur-sm hover:bg-primary/20"
       onClick={handleSignIn}
       disabled={isLoading}
     >

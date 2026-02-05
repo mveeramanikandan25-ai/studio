@@ -17,8 +17,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ['PT Sans', 'sans-serif'],
-        headline: ['PT Sans', 'sans-serif'],
+        body: ['Roboto', 'sans-serif'],
+        headline: ['Orbitron', 'sans-serif'],
         code: ['monospace'],
       },
       colors: {
@@ -114,11 +114,11 @@ export default {
         'coin-shine': {
           '0%, 100%': {
             transform: 'scale(1) rotate(-10deg)',
-            filter: 'drop-shadow(0 0 4px hsl(var(--primary)))',
+            filter: 'drop-shadow(0 0 8px hsl(var(--primary)))',
           },
           '50%': {
             transform: 'scale(1.1) rotate(10deg)',
-            filter: 'drop-shadow(0 0 12px hsl(var(--primary)))',
+            filter: 'drop-shadow(0 0 20px hsl(var(--primary)))',
           },
         },
         'pulse-slow': {

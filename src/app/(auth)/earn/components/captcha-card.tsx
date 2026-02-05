@@ -24,42 +24,6 @@ interface UserData {
     coins: number;
 }
 
-// Function to generate a distorted, noisy character
-const distortChar = (char: string, index: number) => {
-    const rotation = Math.random() * 20 - 10; // -10 to 10 degrees
-    const translateY = Math.random() * 6 - 3; // -3 to 3 px
-    const scale = Math.random() * 0.2 + 0.9; // 0.9 to 1.1 scale
-    const xPos = 25 + index * 45;
-    return `<text
-      x="${xPos}"
-      y="60"
-      transform="rotate(${rotation} ${xPos} 60) translate(0 ${translateY}) scale(${scale})"
-      font-size="45"
-      font-family="PT Sans, sans-serif"
-      font-weight="bold"
-      fill="#29ABE2"
-      text-anchor="middle"
-    >
-      ${char}
-    </text>`;
-};
-
-// Function to generate random noise lines
-const generateNoiseLines = (count: number) => {
-    let lines = '';
-    for (let i = 0; i < count; i++) {
-        const x1 = Math.random() * 300;
-        const y1 = Math.random() * 100;
-        const x2 = Math.random() * 300;
-        const y2 = Math.random() * 100;
-        const stroke = `#29ABE2`;
-        const opacity = Math.random() * 0.3 + 0.2;
-        lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="1" opacity="${opacity}" />`;
-    }
-    return lines;
-};
-
-
 export function CaptchaCard() {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -75,10 +39,41 @@ export function CaptchaCard() {
 
   const captchaImageUrl = useMemo(() => {
     if (!captchaText || typeof window === 'undefined') return '';
-    const chars = captchaText.split('').map(distortChar).join('');
-    const noise = generateNoiseLines(5);
+
+    // Dynamically get theme colors
+    const computedStyle = getComputedStyle(document.documentElement);
+    const primaryColor = `hsl(${computedStyle.getPropertyValue('--primary').trim()})`;
+    
+    const chars = captchaText.split('').map((char, index) => {
+        const rotation = Math.random() * 20 - 10;
+        const translateY = Math.random() * 6 - 3;
+        const scale = Math.random() * 0.2 + 0.9;
+        const xPos = 25 + index * 45;
+        return `<text
+          x="${xPos}"
+          y="60"
+          transform="rotate(${rotation} ${xPos} 60) translate(0 ${translateY}) scale(${scale})"
+          font-size="45"
+          font-family="Orbitron, sans-serif"
+          font-weight="bold"
+          fill="${primaryColor}"
+          text-anchor="middle"
+        >
+          ${char}
+        </text>`;
+    }).join('');
+    
+    const noise = Array.from({length: 5}).map(() => {
+        const x1 = Math.random() * 300;
+        const y1 = Math.random() * 100;
+        const x2 = Math.random() * 300;
+        const y2 = Math.random() * 100;
+        const opacity = Math.random() * 0.3 + 0.2;
+        return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${primaryColor}" stroke-width="1.5" opacity="${opacity}" />`;
+    }).join('');
+
     const svg = `
-      <svg width="300" height="100" xmlns="http://www.w3.org/2000/svg" style="background-color: #E0F7FA; border-radius: 8px;">
+      <svg width="300" height="100" xmlns="http://www.w3.org/2000/svg" style="background-color: transparent; border-radius: 8px;">
         ${noise}
         <g>
           ${chars}
@@ -120,7 +115,7 @@ export function CaptchaCard() {
     toast({
       title: `+25 Coins!`,
       description: 'Your balance has been updated.',
-      className: 'bg-accent text-accent-foreground',
+      className: 'bg-primary text-primary-foreground',
     });
     setIsAdOpen(true);
     setIsLoading(false);

@@ -99,7 +99,7 @@ export function ProfileClient() {
         toast({
             title: 'Success!',
             description: 'You and your friend both received 100 bonus coins.',
-            className: 'bg-accent text-accent-foreground',
+            className: 'bg-primary text-primary-foreground',
         });
         setManualReferralCode('');
 
