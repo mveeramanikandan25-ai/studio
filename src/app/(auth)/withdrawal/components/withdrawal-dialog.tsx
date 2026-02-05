@@ -46,9 +46,10 @@ interface WithdrawalDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   option: WithdrawalOption;
+  onSuccess: () => void;
 }
 
-export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialogProps) {
+export function WithdrawalDialog({ open, onOpenChange, option, onSuccess }: WithdrawalDialogProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -62,7 +63,7 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>>) => {
     if (!user) return;
     setIsLoading(true);
     
@@ -105,11 +106,7 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
           });
         }
 
-        toast({
-            title: 'Request Submitted!',
-            description: 'Congratulations! Your reward will be received via your Gmail ID within 24-48 hours.',
-            duration: 5000,
-        });
+        onSuccess();
         onOpenChange(false);
         form.reset();
 
@@ -197,5 +194,3 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
     </Dialog>
   );
 }
-
-    

@@ -7,6 +7,7 @@ import { doc } from 'firebase/firestore';
 import { Coins } from 'lucide-react';
 import { WithdrawalDialog } from './withdrawal-dialog';
 import { cn } from '@/lib/utils';
+import { WithdrawalSuccessDialog } from './withdrawal-success-dialog';
 
 interface WithdrawalOption {
   coins: number;
@@ -25,11 +26,16 @@ export function WithdrawalOptionCard({ option }: WithdrawalOptionCardProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
   const { data: userData } = useDoc<UserData>(userDocRef);
   
   const hasEnoughCoins = userData ? userData.coins >= option.coins : false;
+
+  const handleSuccess = () => {
+    setIsSuccessDialogOpen(true);
+  };
 
   return (
     <>
@@ -52,6 +58,12 @@ export function WithdrawalOptionCard({ option }: WithdrawalOptionCardProps) {
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         option={option}
+        onSuccess={handleSuccess}
+      />
+      <WithdrawalSuccessDialog
+        open={isSuccessDialogOpen}
+        onOpenChange={setIsSuccessDialogOpen}
+        amountInr={option.inr}
       />
     </>
   );
