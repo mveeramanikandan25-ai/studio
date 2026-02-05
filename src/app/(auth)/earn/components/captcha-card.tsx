@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -8,9 +9,10 @@ import { useUser, useFirestore, useDoc, updateDocumentNonBlocking, useMemoFireba
 import { doc, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FullScreenAd } from '@/components/ui/full-screen-ad';
-import { Loader2, RefreshCw, Coins, Check } from 'lucide-react';
+import { Loader2, RefreshCw, Coins, Check, CheckCircle2, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
 
 
 // --- CAPTCHA Types and Generators ---
@@ -138,6 +140,8 @@ interface UserData {
     coins: number;
 }
 
+const TIMER_DURATION = 15;
+
 export function CaptchaCard() {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -147,6 +151,9 @@ export function CaptchaCard() {
   const [selectedImages, setSelectedImages] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<'correct' | 'incorrect' | null>(null);
+  const [retries, setRetries] = useState(3);
+  const [timer, setTimer] = useState(TIMER_DURATION);
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
   const { data: userData } = useDoc<UserData>(userDocRef);
@@ -170,14 +177,65 @@ export function CaptchaCard() {
     setChallenge(newChallenge);
     setUserInput('');
     setSelectedImages([]);
+    setTimer(TIMER_DURATION);
+    setSubmissionStatus(null);
   }, []);
 
   useEffect(() => {
     generateNewChallenge();
   }, [generateNewChallenge]);
 
+
+  const handleFailure = useCallback(() => {
+    setSubmissionStatus('incorrect');
+    const newRetries = retries - 1;
+    setRetries(newRetries);
+
+    setTimeout(() => {
+      if (newRetries > 0) {
+        generateNewChallenge();
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Out of retries!',
+          description: 'Loading a new set of challenges.',
+        });
+        setRetries(3); // Reset for new set
+        generateNewChallenge();
+      }
+    }, 1500);
+  }, [retries, generateNewChallenge, toast]);
+
+  useEffect(() => {
+    if (!challenge || submissionStatus) return;
+
+    const interval = setInterval(() => {
+        setTimer(prev => {
+            if (prev > 1) {
+                return prev - 1;
+            } else {
+                clearInterval(interval);
+                handleFailure();
+                return 0;
+            }
+        });
+    }, 1000);
+
+    return () => clearInterval(interval);
+}, [challenge, submissionStatus, handleFailure]);
+
+
   const handleRefresh = () => {
-    generateNewChallenge();
+    if (retries > 1) {
+        setRetries(r => r - 1);
+        generateNewChallenge();
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Last try!',
+            description: 'This is your last attempt for this challenge.',
+        });
+    }
   };
   
   const handleImageSelect = (index: number) => {
@@ -188,7 +246,7 @@ export function CaptchaCard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !challenge || !userDocRef) return;
+    if (!user || !challenge || !userDocRef || isLoading || submissionStatus) return;
 
     let isCorrect = false;
     switch (challenge.type) {
@@ -197,7 +255,7 @@ export function CaptchaCard() {
                 toast({ variant: 'destructive', title: 'Empty Input', description: 'Please enter the CAPTCHA.' });
                 return;
             }
-            isCorrect = userInput.trim().toLowerCase() === challenge.text.toLowerCase();
+            isCorrect = userInput.trim() === challenge.text;
             break;
         case 'math':
             if (userInput.trim() === '') {
@@ -216,30 +274,28 @@ export function CaptchaCard() {
             break;
     }
 
-    if (!isCorrect) {
-      toast({
-        variant: 'destructive',
-        title: 'Incorrect CAPTCHA',
-        description: 'Please try again.',
-      });
-      handleRefresh();
-      return;
+    if (isCorrect) {
+        setIsLoading(true);
+        setSubmissionStatus('correct');
+
+        updateDocumentNonBlocking(userDocRef, {
+            coins: increment(25),
+        });
+
+        setTimeout(() => {
+            toast({
+              title: `+25 Coins!`,
+              description: 'Your balance has been updated.',
+              className: 'bg-primary text-primary-foreground',
+            });
+            setIsAdOpen(true);
+            setIsLoading(false);
+            setRetries(3); // Reset retries
+            generateNewChallenge();
+        }, 1500);
+    } else {
+        handleFailure();
     }
-
-    setIsLoading(true);
-
-    updateDocumentNonBlocking(userDocRef, {
-        coins: increment(25),
-    });
-
-    toast({
-      title: `+25 Coins!`,
-      description: 'Your balance has been updated.',
-      className: 'bg-primary text-primary-foreground',
-    });
-    setIsAdOpen(true);
-    setIsLoading(false);
-    handleRefresh();
   };
   
   const handleAdClose = () => {
@@ -323,7 +379,7 @@ export function CaptchaCard() {
                             autoCorrect="off"
                             className="text-center tracking-widest font-mono"
                         />
-                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading}>
+                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading || retries <= 1}>
                             <RefreshCw className="h-5 w-5" />
                         </Button>
                     </div>
@@ -345,7 +401,7 @@ export function CaptchaCard() {
                             required
                             className="text-center tracking-widest font-mono"
                         />
-                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading}>
+                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading || retries <= 1}>
                             <RefreshCw className="h-5 w-5" />
                         </Button>
                     </div>
@@ -356,7 +412,7 @@ export function CaptchaCard() {
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <p className="text-center text-lg">Select all images with a <span className="font-bold text-primary capitalize">{challenge.prompt}</span></p>
-                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading}>
+                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading || retries <= 1}>
                             <RefreshCw className="h-5 w-5" />
                         </Button>
                     </div>
@@ -386,7 +442,18 @@ export function CaptchaCard() {
 
   return (
     <>
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden relative">
+         {submissionStatus && (
+            <div className="absolute inset-0 bg-card/80 backdrop-blur-sm flex items-center justify-center z-10">
+                <div className="animate-pop-in">
+                    {submissionStatus === 'correct' ? (
+                        <CheckCircle2 className="h-32 w-32 text-primary" />
+                    ) : (
+                        <XCircle className="h-32 w-32 text-destructive" />
+                    )}
+                </div>
+            </div>
+        )}
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-lg">Your Balance</CardTitle>
@@ -398,10 +465,17 @@ export function CaptchaCard() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+             <div className="space-y-2">
+                <Progress value={(timer / TIMER_DURATION) * 100} className="h-2" />
+                <div className="flex justify-between text-xs text-muted-foreground px-1">
+                    <span>Time left: {timer}s</span>
+                    <span>Retries left: {retries}</span>
+                </div>
+            </div>
             {renderChallenge()}
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || submissionStatus !== null}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Submit & Earn 25 Coins
             </Button>
@@ -412,3 +486,4 @@ export function CaptchaCard() {
     </>
   );
 }
+
