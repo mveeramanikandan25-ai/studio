@@ -41,7 +41,7 @@ export function WithdrawalOptionCard({ option }: WithdrawalOptionCardProps) {
         onClick={() => hasEnoughCoins && setIsDialogOpen(true)}
       >
         <CardContent className="p-0 flex flex-col items-center gap-2">
-          <h3 className="text-2xl font-bold text-primary">₹{option.inr}</h3>
+          <h3 className="text-2xl font-bold text-primary">₹ {option.inr}</h3>
           <div className="flex items-center gap-1 text-sm">
             <Coins className="h-4 w-4" />
             <span>{option.coins.toLocaleString()}</span>

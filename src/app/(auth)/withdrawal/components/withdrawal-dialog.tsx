@@ -128,7 +128,7 @@ export function WithdrawalDialog({ open, onOpenChange, option }: WithdrawalDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Withdraw ₹{option.inr}</DialogTitle>
+          <DialogTitle>Withdraw ₹ {option.inr}</DialogTitle>
           <DialogDescription>
             You are about to redeem {option.coins.toLocaleString()} coins. Please provide your details.
           </DialogDescription>
