@@ -63,7 +63,7 @@ export function WithdrawalDialog({ open, onOpenChange, option, onSuccess }: With
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) return;
     setIsLoading(true);
     
