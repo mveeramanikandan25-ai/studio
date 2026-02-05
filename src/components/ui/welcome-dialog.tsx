@@ -5,18 +5,21 @@ import { useUser } from '@/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Coins, PartyPopper } from 'lucide-react';
 
-const WELCOME_DIALOG_SHOWN_KEY = 'welcomeDialogShown';
+const LAST_WELCOME_SHOWN_KEY = 'lastWelcomeDialogShown';
 
 export function WelcomeDialog() {
   const { user } = useUser();
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      const hasBeenShown = sessionStorage.getItem(WELCOME_DIALOG_SHOWN_KEY);
-      if (!hasBeenShown) {
+    // This effect should only run on the client side
+    if (user && typeof window !== 'undefined') {
+      const today = new Date().toDateString();
+      const lastShownDate = localStorage.getItem(LAST_WELCOME_SHOWN_KEY);
+
+      if (lastShownDate !== today) {
         setIsOpen(true);
-        sessionStorage.setItem(WELCOME_DIALOG_SHOWN_KEY, 'true');
+        localStorage.setItem(LAST_WELCOME_SHOWN_KEY, today);
       }
     }
   }, [user]);
@@ -31,10 +34,6 @@ export function WelcomeDialog() {
     }
   }, [isOpen]);
   
-  if (!user) {
-    return null;
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent 
@@ -51,7 +50,7 @@ export function WelcomeDialog() {
         </div>
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold font-headline animate-fade-in-up">
-            Welcome, {user.displayName?.split(' ')[0] || 'User'}!
+            Welcome to CAPTCHA Rewards App
           </DialogTitle>
           <DialogDescription className="text-muted-foreground mt-2 animate-fade-in-up animation-delay-200">
             You're all set to start earning.
