@@ -140,7 +140,11 @@ interface UserData {
     coins: number;
 }
 
-const TIMER_DURATION = 15;
+const TIMER_DURATIONS: Record<CaptchaType, number> = {
+    image: 20,
+    math: 10,
+    text: 15,
+};
 
 export function CaptchaCard() {
   const { user } = useUser();
@@ -153,7 +157,9 @@ export function CaptchaCard() {
   const [isAdOpen, setIsAdOpen] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'correct' | 'incorrect' | null>(null);
   const [retries, setRetries] = useState(3);
-  const [timer, setTimer] = useState(TIMER_DURATION);
+  const [timer, setTimer] = useState(TIMER_DURATIONS.text);
+  const [initialTimer, setInitialTimer] = useState(TIMER_DURATIONS.text);
+
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
   const { data: userData } = useDoc<UserData>(userDocRef);
@@ -174,10 +180,12 @@ export function CaptchaCard() {
         newChallenge = generateImageCaptcha();
         break;
     }
+    const duration = TIMER_DURATIONS[newChallenge.type];
     setChallenge(newChallenge);
     setUserInput('');
     setSelectedImages([]);
-    setTimer(TIMER_DURATION);
+    setInitialTimer(duration);
+    setTimer(duration);
     setSubmissionStatus(null);
   }, []);
 
@@ -347,6 +355,17 @@ export function CaptchaCard() {
     return `data:image/svg+xml;base64,${window.btoa(svg)}`;
   }, [challenge]);
 
+  const getTimerIndicatorClass = () => {
+    if (!initialTimer) return 'bg-primary';
+    if (timer <= 3) {
+        return 'bg-destructive';
+    }
+    if ((timer / initialTimer) <= 0.5) {
+        return 'bg-yellow-500';
+    }
+    return 'bg-primary';
+  };
+
   const renderChallenge = () => {
     if (!challenge) {
         return (
@@ -466,7 +485,7 @@ export function CaptchaCard() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
              <div className="space-y-2">
-                <Progress value={(timer / TIMER_DURATION) * 100} className="h-2" />
+                <Progress value={(timer / initialTimer) * 100} className="h-2" indicatorClassName={getTimerIndicatorClass()} />
                 <div className="flex justify-between text-xs text-muted-foreground px-1">
                     <span>Time left: {timer}s</span>
                     <span>Retries left: {retries}</span>
@@ -486,4 +505,3 @@ export function CaptchaCard() {
     </>
   );
 }
-
