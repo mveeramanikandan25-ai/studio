@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { MessageCircle, MessagesSquare, Send, Smartphone, Copy } from 'lucide-react';
+import { MessageCircle, Send, Smartphone, Copy } from 'lucide-react';
 
 interface ShareButtonsProps {
   referralCode: string;
@@ -24,14 +24,6 @@ export function ShareButtons({ referralCode }: ShareButtonsProps) {
       icon: <MessageCircle className="h-6 w-6" />,
       action: () => {
           window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, '_blank');
-      }
-    },
-    {
-      name: 'Messenger',
-      icon: <MessagesSquare className="h-6 w-6" />,
-      action: () => {
-          // Note: This deep link may not work on all devices/browsers, especially desktop.
-          window.open(`fb-messenger://share?link=${encodeURIComponent(referralLink)}`, '_blank');
       }
     },
     {
@@ -57,7 +49,7 @@ export function ShareButtons({ referralCode }: ShareButtonsProps) {
 
   return (
     <div className="space-y-2">
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-4 gap-2">
             {shareOptions.map((option) => (
                 <Button
                     key={option.name}
