@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@/firebase';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Coins } from 'lucide-react';
 
 const WELCOME_DIALOG_SHOWN_KEY = 'welcomeDialogShown';
@@ -47,12 +47,14 @@ export function WelcomeDialog() {
                 <Coins className="h-12 w-12 text-primary animate-coin-shine" />
             </div>
         </div>
-        <h2 className="text-2xl font-bold font-headline animate-fade-in-up">
-          Welcome, {user.displayName?.split(' ')[0] || 'User'}!
-        </h2>
-        <p className="text-muted-foreground mt-2 animate-fade-in-up animation-delay-200">
-          You're all set to start earning.
-        </p>
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold font-headline animate-fade-in-up">
+            Welcome, {user.displayName?.split(' ')[0] || 'User'}!
+          </DialogTitle>
+          <DialogDescription className="text-muted-foreground mt-2 animate-fade-in-up animation-delay-200">
+            You're all set to start earning.
+          </DialogDescription>
+        </DialogHeader>
       </DialogContent>
     </Dialog>
   );
