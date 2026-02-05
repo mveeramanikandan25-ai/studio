@@ -102,7 +102,7 @@ function generateImageCaptcha(): ImageCaptcha {
     const images = [];
     const correctIndices: number[] = [];
     const numImages = 9;
-    const numCorrect = Math.floor(Math.random() * 2) + 3; // Generate 3 or 4 correct images
+    const numCorrect = Math.floor(Math.random() * 3) + 2; // Generate 2, 3, or 4 correct images
 
     const allIndices = Array.from({ length: numImages }, (_, i) => i);
     
