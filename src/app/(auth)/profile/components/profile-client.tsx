@@ -7,8 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Coins, Copy, LogOut, Share2 } from 'lucide-react';
+import { Coins, Copy, LogOut } from 'lucide-react';
 import { doc } from 'firebase/firestore';
+import { ShareButtons } from './share-buttons';
 
 interface UserData {
     displayName: string;
@@ -34,31 +35,13 @@ export function ProfileClient() {
     toast({ title: 'Logged out successfully.' });
   };
 
-  const handleCopyReferral = () => {
+  const handleCopyReferralCode = () => {
     if (userData?.referralCode) {
       navigator.clipboard.writeText(userData.referralCode);
       toast({ title: 'Referral code copied!' });
     }
   };
 
-  const handleShareReferral = () => {
-    if (userData?.referralCode) {
-      const referralLink = `${window.location.origin}/?ref=${userData.referralCode}`;
-      if (navigator.share) {
-        navigator.share({
-          title: 'Join me on CASHCHA!',
-          text: `Sign up for CASHCHA and we both get 100 bonus coins! Use my code: ${userData.referralCode}`,
-          url: referralLink,
-        }).then(() => {
-          toast({ title: 'Thanks for sharing!' });
-        }).catch((error) => console.log('Error sharing', error));
-      } else {
-        navigator.clipboard.writeText(referralLink);
-        toast({ title: 'Referral link copied to clipboard!' });
-      }
-    }
-  };
-  
   const getInitials = (name: string) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -88,16 +71,14 @@ export function ProfileClient() {
           <CardTitle>Refer & Earn</CardTitle>
           <CardDescription>Share your code and earn 100 coins when a friend signs up.</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center justify-between gap-2 rounded-lg bg-muted p-4">
-            <span className="font-mono text-lg font-semibold tracking-widest">{userData?.referralCode}</span>
-            <div className="flex items-center">
-              <Button size="icon" variant="ghost" onClick={handleCopyReferral} aria-label="Copy referral code">
-                  <Copy className="h-5 w-5"/>
-              </Button>
-              <Button size="icon" variant="ghost" onClick={handleShareReferral} aria-label="Share referral link">
-                  <Share2 className="h-5 w-5"/>
-              </Button>
+        <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-muted p-4">
+                <span className="font-mono text-lg font-semibold tracking-widest">{userData?.referralCode}</span>
+                <Button size="icon" variant="ghost" onClick={handleCopyReferralCode} aria-label="Copy referral code">
+                    <Copy className="h-5 w-5"/>
+                </Button>
             </div>
+            {userData?.referralCode && <ShareButtons referralCode={userData.referralCode} />}
         </CardContent>
       </Card>
 
@@ -108,4 +89,3 @@ export function ProfileClient() {
     </>
   );
 }
-    
