@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Coins } from 'lucide-react';
 import { WithdrawalDialog } from './withdrawal-dialog';
 import { cn } from '@/lib/utils';
 import { WithdrawalSuccessDialog } from './withdrawal-success-dialog';
+import { Button } from '@/components/ui/button';
 
 interface WithdrawalOption {
   coins: number;
@@ -41,18 +42,26 @@ export function WithdrawalOptionCard({ option }: WithdrawalOptionCardProps) {
     <>
       <Card
         className={cn(
-          'flex flex-col items-center justify-center text-center p-4 transition-all',
-          !hasEnoughCoins ? 'bg-muted/50 text-muted-foreground' : 'cursor-pointer hover:bg-primary/5 hover:shadow-lg'
+          'flex flex-col text-center transition-all',
+          !hasEnoughCoins && 'bg-muted/50 text-muted-foreground'
         )}
-        onClick={() => hasEnoughCoins && setIsDialogOpen(true)}
       >
-        <CardContent className="p-0 flex flex-col items-center gap-2">
+        <CardContent className="p-4 flex-grow flex flex-col items-center justify-center gap-2">
           <h3 className="text-2xl font-bold text-primary">INR {option.inr}</h3>
           <div className="flex items-center gap-1 text-sm">
             <Coins className="h-4 w-4" />
             <span>{option.coins.toLocaleString()}</span>
           </div>
         </CardContent>
+        <CardFooter className="p-4 pt-0">
+            <Button
+                className="w-full"
+                onClick={() => setIsDialogOpen(true)}
+                disabled={!hasEnoughCoins}
+            >
+                Claim
+            </Button>
+        </CardFooter>
       </Card>
       <WithdrawalDialog
         open={isDialogOpen}
