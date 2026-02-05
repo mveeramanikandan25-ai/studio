@@ -1,6 +1,12 @@
+'use client';
 import AuthGuard from '@/components/auth/auth-guard';
 import { BottomNav } from '@/components/layout/bottom-nav';
-import { WelcomeDialog } from '@/components/ui/welcome-dialog';
+import dynamic from 'next/dynamic';
+
+const WelcomeDialog = dynamic(() => import('@/components/ui/welcome-dialog').then(mod => mod.WelcomeDialog), {
+  ssr: false,
+});
+
 
 export default function AuthenticatedLayout({
   children,

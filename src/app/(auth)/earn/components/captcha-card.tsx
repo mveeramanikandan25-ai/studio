@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { useUser, useFirestore, useDoc, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { doc, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { FullScreenAd } from '@/components/ui/full-screen-ad';
 import { Loader2, RefreshCw, Coins, Check, CheckCircle2, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import dynamic from 'next/dynamic';
+
+const FullScreenAd = dynamic(() => import('@/components/ui/full-screen-ad').then(mod => mod.FullScreenAd), { ssr: false });
 
 
 // --- CAPTCHA Types and Generators ---
@@ -100,15 +102,17 @@ function generateImageCaptcha(): ImageCaptcha {
     const images = [];
     const correctIndices: number[] = [];
     const numImages = 9;
-    const numCorrect = Math.floor(Math.random() * 3) + 3;
+    const numCorrect = Math.floor(Math.random() * 3) + 2; // Generate 2, 3, or 4 correct images
 
     const allIndices = Array.from({ length: numImages }, (_, i) => i);
     
+    // Shuffle indices to randomize placement
     for (let i = allIndices.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
     }
 
+    // Assign correct and incorrect images
     for(let i=0; i<numCorrect; i++){
         correctIndices.push(allIndices[i]);
     }
@@ -121,6 +125,7 @@ function generateImageCaptcha(): ImageCaptcha {
         if (isCorrect) {
             seed = correctKeywords[Math.floor(Math.random() * correctKeywords.length)];
         } else {
+            // Ensure incorrect images are from a different category
             const otherCategories = categories.filter(c => c !== prompt);
             const randomCategory = otherCategories[Math.floor(Math.random() * otherCategories.length)];
             const randomKeywords = IMAGE_CATEGORIES[randomCategory];
@@ -501,7 +506,7 @@ export function CaptchaCard() {
           </CardFooter>
         </form>
       </Card>
-      <FullScreenAd open={isAdOpen} onClose={handleAdClose} />
+      {isAdOpen && <FullScreenAd open={isAdOpen} onClose={handleAdClose} />}
     </>
   );
 }

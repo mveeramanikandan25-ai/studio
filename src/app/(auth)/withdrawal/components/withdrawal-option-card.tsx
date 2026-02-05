@@ -5,10 +5,12 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Coins } from 'lucide-react';
-import { WithdrawalDialog } from './withdrawal-dialog';
 import { cn } from '@/lib/utils';
-import { WithdrawalSuccessDialog } from './withdrawal-success-dialog';
 import { Button } from '@/components/ui/button';
+import dynamic from 'next/dynamic';
+
+const WithdrawalDialog = dynamic(() => import('./withdrawal-dialog').then(mod => mod.WithdrawalDialog), { ssr: false });
+const WithdrawalSuccessDialog = dynamic(() => import('./withdrawal-success-dialog').then(mod => mod.WithdrawalSuccessDialog), { ssr: false });
 
 interface WithdrawalOption {
   coins: number;
@@ -63,17 +65,17 @@ export function WithdrawalOptionCard({ option }: WithdrawalOptionCardProps) {
             </Button>
         </CardFooter>
       </Card>
-      <WithdrawalDialog
+      {isDialogOpen && <WithdrawalDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         option={option}
         onSuccess={handleSuccess}
-      />
-      <WithdrawalSuccessDialog
+      />}
+      {isSuccessDialogOpen && <WithdrawalSuccessDialog
         open={isSuccessDialogOpen}
         onOpenChange={setIsSuccessDialogOpen}
         amountInr={option.inr}
-      />
+      />}
     </>
   );
 }

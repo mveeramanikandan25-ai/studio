@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { useWithdrawalHistory, type Withdrawal } from '@/hooks/use-withdrawal-history';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Coins, Banknote, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-function HistoryItem({ withdrawal }: { withdrawal: Withdrawal }) {
+const HistoryItem = memo(function HistoryItem({ withdrawal }: { withdrawal: Withdrawal }) {
   const isUpi = withdrawal.method === 'UPI';
 
   return (
@@ -48,7 +49,9 @@ function HistoryItem({ withdrawal }: { withdrawal: Withdrawal }) {
         </CardFooter>
     </Card>
   );
-}
+});
+HistoryItem.displayName = 'HistoryItem';
+
 
 function HistorySkeleton() {
     return (
