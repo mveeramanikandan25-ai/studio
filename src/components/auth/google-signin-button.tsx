@@ -1,59 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { GoogleAuthProvider, signInWithRedirect } from 'firebase/auth';
+import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-
-function generateReferralCode(length: number): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
 
 export function GoogleSignInButton() {
   const [isLoading, setIsLoading] = useState(false);
   const auth = useAuth();
-  const firestore = useFirestore();
   const { toast } = useToast();
-  const router = useRouter();
 
   const handleSignIn = async () => {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      const userRef = doc(firestore, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
-
-      if (!userDoc.exists()) {
-        const googleProviderData = user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
-        setDocumentNonBlocking(userRef, {
-            id: user.uid,
-            googleId: googleProviderData?.uid || user.uid,
-            email: user.email,
-            displayName: user.displayName || 'User',
-            photoURL: user.photoURL,
-            coins: 100, // Signup bonus
-            referralCode: generateReferralCode(5),
-            createdAt: serverTimestamp(),
-        }, { merge: true });
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Signed in successfully.',
-      });
-      router.push('/earn');
+      await signInWithRedirect(auth, provider);
     } catch (error) {
       console.error('Google Sign-In Error:', error);
       toast({
@@ -61,7 +24,6 @@ export function GoogleSignInButton() {
         title: 'Uh oh! Something went wrong.',
         description: 'There was a problem with your sign-in request.',
       });
-    } finally {
       setIsLoading(false);
     }
   };
