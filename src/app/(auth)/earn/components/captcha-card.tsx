@@ -12,13 +12,15 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import dynamic from 'next/dynamic';
+import { Slider } from '@/components/ui/slider';
+
 
 const FullScreenAd = dynamic(() => import('@/components/ui/full-screen-ad').then(mod => mod.FullScreenAd), { ssr: false });
 
 
 // --- CAPTCHA Types and Generators ---
 
-type CaptchaType = 'text' | 'math' | 'icon-sequence' | 'audio';
+type CaptchaType = 'text' | 'math' | 'icon-sequence' | 'audio' | 'puzzle';
 
 interface TextCaptcha {
   type: 'text';
@@ -67,8 +69,15 @@ interface AudioCaptcha {
   text: string;
 }
 
+interface PuzzleCaptcha {
+  type: 'puzzle';
+  imageUrl: string;
+  targetX: number; // Percentage from left (20-80)
+  pieceY: number;  // Percentage from top
+}
 
-type CaptchaChallenge = TextCaptcha | MathCaptcha | IconSequenceCaptcha | AudioCaptcha;
+
+type CaptchaChallenge = TextCaptcha | MathCaptcha | IconSequenceCaptcha | AudioCaptcha | PuzzleCaptcha;
 
 function generateTextCaptcha(length = 6): TextCaptcha {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -158,6 +167,16 @@ function generateAudioCaptcha(): AudioCaptcha {
   return { type: 'audio', text };
 }
 
+function generatePuzzleCaptcha(): PuzzleCaptcha {
+    const seed = Math.floor(Math.random() * 1000);
+    return {
+        type: 'puzzle',
+        imageUrl: `https://picsum.photos/seed/puzzle${seed}/400/200`,
+        targetX: Math.floor(Math.random() * 50) + 25, // 25% to 74%
+        pieceY: Math.floor(Math.random() * 50) + 25, // 25% to 74%
+    };
+}
+
 interface UserData {
     coins: number;
 }
@@ -167,6 +186,7 @@ const TIMER_DURATIONS: Record<CaptchaType, number> = {
     text: 15,
     'icon-sequence': 20,
     'audio': 20,
+    'puzzle': 25,
 };
 
 export function CaptchaCard() {
@@ -176,6 +196,7 @@ export function CaptchaCard() {
   const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [userInput, setUserInput] = useState('');
   const [selectedIcons, setSelectedIcons] = useState<PositionedIcon[]>([]);
+  const [puzzleSliderValue, setPuzzleSliderValue] = useState([10]);
   const [replaysLeft, setReplaysLeft] = useState(2);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
@@ -190,7 +211,7 @@ export function CaptchaCard() {
   const { data: userData } = useDoc<UserData>(userDocRef);
 
   const generateNewChallenge = useCallback((resetStatus = true) => {
-    const captchaTypes: CaptchaType[] = ['text', 'math', 'icon-sequence', 'audio'];
+    const captchaTypes: CaptchaType[] = ['text', 'math', 'icon-sequence', 'audio', 'puzzle'];
     const randomType = captchaTypes[Math.floor(Math.random() * captchaTypes.length)];
     
     let newChallenge: CaptchaChallenge;
@@ -207,11 +228,15 @@ export function CaptchaCard() {
       case 'audio':
         newChallenge = generateAudioCaptcha();
         break;
+      case 'puzzle':
+        newChallenge = generatePuzzleCaptcha();
+        break;
     }
     const duration = TIMER_DURATIONS[newChallenge.type];
     setChallenge(newChallenge);
     setUserInput('');
     setSelectedIcons([]);
+    setPuzzleSliderValue([10]);
     hasAudioPlayed.current = false;
     setReplaysLeft(2);
     setInitialTimer(duration);
@@ -339,6 +364,12 @@ export function CaptchaCard() {
                 return;
             }
             isCorrect = userInput.trim().toUpperCase() === challenge.text.toUpperCase();
+            break;
+        }
+        case 'puzzle': {
+            const sliderVal = puzzleSliderValue[0];
+            // Allow a small tolerance
+            isCorrect = Math.abs(sliderVal - challenge.targetX) < 2;
             break;
         }
     }
@@ -572,12 +603,63 @@ export function CaptchaCard() {
                     />
                 </div>
             );
+        case 'puzzle':
+            return (
+                <div className="space-y-4">
+                    <p className="text-center text-muted-foreground">Slide the piece to fit in the hole.</p>
+                    <div className="relative w-full h-[200px] bg-muted rounded-lg overflow-hidden border">
+                        <Image
+                            src={challenge.imageUrl}
+                            layout="fill"
+                            objectFit="cover"
+                            alt="Puzzle background"
+                            className="opacity-50"
+                        />
+                        {/* The hole */}
+                        <div
+                            className="absolute text-black/30"
+                            style={{
+                                left: `${challenge.targetX}%`,
+                                top: `${challenge.pieceY}%`,
+                                transform: `translate(-50%, -50%)`,
+                            }}
+                        >
+                            <Ghost className="w-12 h-12" />
+                        </div>
+                        {/* The draggable piece */}
+                        <div
+                            className="absolute text-primary drop-shadow-lg cursor-grab active:cursor-grabbing"
+                            style={{
+                                left: `${puzzleSliderValue[0]}%`,
+                                top: `${challenge.pieceY}%`,
+                                transform: `translate(-50%, -50%)`,
+                                transition: 'left 100ms ease-out',
+                            }}
+                        >
+                           <Ghost className="w-12 h-12" />
+                        </div>
+                    </div>
+                    <div className="pt-2">
+                        <Slider
+                            value={puzzleSliderValue}
+                            onValueChange={setPuzzleSliderValue}
+                            max={95}
+                            min={5}
+                            step={0.1}
+                            disabled={isLoading || submissionStatus !== null}
+                        />
+                    </div>
+                </div>
+            );
     }
   };
 
   const getSubmitButtonText = () => {
     if (challenge?.type === 'icon-sequence') {
       return 'Check Sequence & Earn 25 Coins';
+    }
+    if (challenge?.type === 'puzzle') {
+      return 'Check Position & Earn 25 Coins';
     }
     return 'Submit & Earn 25 Coins';
   };
