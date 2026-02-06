@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HandCoins, Banknote, History, User } from 'lucide-react';
+import { HandCoins, Gift, Banknote, History, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/earn', label: 'Earn', icon: HandCoins },
+  { href: '/rewards', label: 'Rewards', icon: Gift },
   { href: '/withdrawal', label: 'Withdraw', icon: Banknote },
   { href: '/history', label: 'History', icon: History },
   { href: '/profile', label: 'Profile', icon: User },
@@ -17,9 +18,9 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card/80 backdrop-blur-lg">
-      <div className="mx-auto flex h-16 max-w-md items-center justify-around">
+      <div className="mx-auto grid h-16 max-w-md grid-cols-5 items-center justify-around">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
