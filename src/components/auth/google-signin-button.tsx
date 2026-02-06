@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth, useFirestore, updateDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc, collection, query, where, getDocs, increment } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, collection, query, where, getDocs, increment } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 function generateReferralCode(length: number): string {
@@ -68,7 +68,7 @@ export function GoogleSignInButton() {
                 }
             }
 
-            await setDoc(userRef, {
+            const userData = {
                 id: user.uid,
                 googleId: user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID)?.uid || user.uid,
                 email: user.email,
@@ -81,7 +81,8 @@ export function GoogleSignInButton() {
                 updatedAt: serverTimestamp(),
                 language: 'en',
                 theme: 'system',
-            });
+            };
+            setDocumentNonBlocking(userRef, userData);
             
             if (!referredByCode) {
                  toast({ title: 'Welcome!', description: `You received a ${signupBonus} coin signup bonus.` });
