@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -19,7 +18,7 @@ const FullScreenAd = dynamic(() => import('@/components/ui/full-screen-ad').then
 
 // --- CAPTCHA Types and Generators ---
 
-type CaptchaType = 'text' | 'math' | 'image';
+type CaptchaType = 'text' | 'math';
 
 interface TextCaptcha {
   type: 'text';
@@ -32,28 +31,7 @@ interface MathCaptcha {
   answer: number;
 }
 
-const IMAGE_CATEGORIES = {
-    car: ['car', 'auto', 'sedan', 'suv'],
-    bicycle: ['bicycle', 'bike', 'cyclist', 'biking'],
-    boat: ['boat', 'ship', 'yacht', 'sail'],
-    mountain: ['mountain', 'peak', 'range', 'alps'],
-    beach: ['beach', 'coast', 'shore', 'sand'],
-    flower: ['flower', 'bloom', 'petal', 'floral'],
-};
-
-type ImageCategory = keyof typeof IMAGE_CATEGORIES;
-
-interface ImageCaptcha {
-  type: 'image';
-  prompt: ImageCategory;
-  images: {
-    src: string;
-    key: string;
-  }[];
-  correctIndices: number[];
-}
-
-type CaptchaChallenge = TextCaptcha | MathCaptcha | ImageCaptcha;
+type CaptchaChallenge = TextCaptcha | MathCaptcha;
 
 function generateTextCaptcha(length = 6): TextCaptcha {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -94,59 +72,11 @@ function generateMathCaptcha(): MathCaptcha {
     return { type: 'math', question, answer };
 }
 
-function generateImageCaptcha(): ImageCaptcha {
-    const categories = Object.keys(IMAGE_CATEGORIES) as ImageCategory[];
-    const prompt = categories[Math.floor(Math.random() * categories.length)];
-    const correctKeywords = IMAGE_CATEGORIES[prompt];
-    
-    const images = [];
-    const correctIndices: number[] = [];
-    const numImages = 9;
-    const numCorrect = Math.floor(Math.random() * 3) + 2; // Generate 2, 3, or 4 correct images
-
-    const allIndices = Array.from({ length: numImages }, (_, i) => i);
-    
-    // Shuffle indices to randomize placement
-    for (let i = allIndices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
-    }
-
-    // Assign correct and incorrect images
-    for(let i=0; i<numCorrect; i++){
-        correctIndices.push(allIndices[i]);
-    }
-    correctIndices.sort((a,b) => a-b);
-
-
-    for (let i = 0; i < numImages; i++) {
-        const isCorrect = correctIndices.includes(i);
-        let seed;
-        if (isCorrect) {
-            seed = correctKeywords[Math.floor(Math.random() * correctKeywords.length)];
-        } else {
-            // Ensure incorrect images are from a different category
-            const otherCategories = categories.filter(c => c !== prompt);
-            const randomCategory = otherCategories[Math.floor(Math.random() * otherCategories.length)];
-            const randomKeywords = IMAGE_CATEGORIES[randomCategory];
-            seed = randomKeywords[Math.floor(Math.random() * randomKeywords.length)];
-        }
-        const key = `${seed}-${i}-${Date.now()}`;
-        images.push({
-            src: `https://picsum.photos/seed/${key}/200/200`,
-            key: key,
-        });
-    }
-
-    return { type: 'image', prompt, images, correctIndices };
-}
-
 interface UserData {
     coins: number;
 }
 
 const TIMER_DURATIONS: Record<CaptchaType, number> = {
-    image: 20,
     math: 10,
     text: 15,
 };
@@ -157,7 +87,6 @@ export function CaptchaCard() {
   const { toast } = useToast();
   const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [userInput, setUserInput] = useState('');
-  const [selectedImages, setSelectedImages] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'correct' | 'incorrect' | null>(null);
@@ -170,7 +99,7 @@ export function CaptchaCard() {
   const { data: userData } = useDoc<UserData>(userDocRef);
 
   const generateNewChallenge = useCallback((resetStatus = true) => {
-    const captchaTypes: CaptchaType[] = ['text', 'math', 'image'];
+    const captchaTypes: CaptchaType[] = ['text', 'math'];
     const randomType = captchaTypes[Math.floor(Math.random() * captchaTypes.length)];
     
     let newChallenge: CaptchaChallenge;
@@ -181,14 +110,10 @@ export function CaptchaCard() {
       case 'math':
         newChallenge = generateMathCaptcha();
         break;
-      case 'image':
-        newChallenge = generateImageCaptcha();
-        break;
     }
     const duration = TIMER_DURATIONS[newChallenge.type];
     setChallenge(newChallenge);
     setUserInput('');
-    setSelectedImages([]);
     setInitialTimer(duration);
     setTimer(duration);
     if (resetStatus) {
@@ -253,11 +178,6 @@ export function CaptchaCard() {
     }
   };
   
-  const handleImageSelect = (index: number) => {
-    setSelectedImages(prev => 
-      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
-    );
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -278,14 +198,6 @@ export function CaptchaCard() {
                 return;
             }
             isCorrect = parseInt(userInput, 10) === challenge.answer;
-            break;
-        case 'image':
-            if (selectedImages.length === 0) {
-                toast({ variant: 'destructive', title: 'No images selected', description: 'Please select the matching images.' });
-                return;
-            }
-            const sortedSelected = [...selectedImages].sort((a, b) => a - b);
-            isCorrect = JSON.stringify(sortedSelected) === JSON.stringify(challenge.correctIndices);
             break;
     }
 
@@ -434,36 +346,6 @@ export function CaptchaCard() {
                     </div>
                 </div>
             );
-        case 'image':
-            return (
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <p className="text-center text-lg">Select all images with a <span className="font-bold text-primary capitalize">{challenge.prompt}</span></p>
-                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading || retries <= 1}>
-                            <RefreshCw className="h-5 w-5" />
-                        </Button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        {challenge.images.map((image, index) => (
-                            <div key={image.key} className="relative cursor-pointer group" onClick={() => handleImageSelect(index)}>
-                                <Image src={image.src} alt={`captcha image ${index + 1}`} width={100} height={100} className="rounded-md w-full h-auto aspect-square object-cover" />
-                                <div className={cn(
-                                    "absolute inset-0 rounded-md transition-all",
-                                    selectedImages.includes(index)
-                                        ? "bg-primary/50 border-4 border-primary"
-                                        : "bg-black/20 opacity-0 group-hover:opacity-100"
-                                )}>
-                                    {selectedImages.includes(index) && (
-                                        <div className="flex items-center justify-center h-full">
-                                            <Check className="h-8 w-8 text-primary-foreground" />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
     }
   };
 
@@ -513,5 +395,3 @@ export function CaptchaCard() {
     </>
   );
 }
-
-    
