@@ -149,9 +149,9 @@ function generateIconSequenceCaptcha(): IconSequenceCaptcha {
 }
 
 function generateAudioCaptcha(): AudioCaptcha {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const chars = '0123456789'; // Only numbers
   let text = '';
-  const length = Math.floor(Math.random() * 3) + 3; // 3-5 chars
+  const length = Math.floor(Math.random() * 3) + 4; // 4 to 6 digits for clarity
   for (let i = 0; i < length; i++) {
     text += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -291,8 +291,10 @@ export function CaptchaCard() {
     if (challenge?.type === 'audio' && 'speechSynthesis' in window) {
       if (hasAudioPlayed.current && replaysLeft <= 0) return;
 
-      const utterance = new SpeechSynthesisUtterance(challenge.text);
+      const spokenText = challenge.text.split('').join(' ');
+      const utterance = new SpeechSynthesisUtterance(spokenText);
       utterance.lang = 'en-US';
+      utterance.rate = 0.7; // Slower speech rate
       window.speechSynthesis.speak(utterance);
 
       if (hasAudioPlayed.current) {
