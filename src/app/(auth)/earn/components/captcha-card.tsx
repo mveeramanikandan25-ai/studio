@@ -20,7 +20,7 @@ const FullScreenAd = dynamic(() => import('@/components/ui/full-screen-ad').then
 
 // --- CAPTCHA Types and Generators ---
 
-type CaptchaType = 'text' | 'math' | 'icon-sequence' | 'audio' | 'puzzle';
+type CaptchaType = 'text' | 'math' | 'icon-sequence' | 'audio' | 'puzzle' | 'color';
 
 interface TextCaptcha {
   type: 'text';
@@ -76,8 +76,19 @@ interface PuzzleCaptcha {
   pieceY: number;  // Percentage from top
 }
 
+interface ColorInfo {
+    name: string;
+    hex: string;
+}
 
-type CaptchaChallenge = TextCaptcha | MathCaptcha | IconSequenceCaptcha | AudioCaptcha | PuzzleCaptcha;
+interface ColorCaptcha {
+    type: 'color';
+    target: ColorInfo;
+    options: ColorInfo[];
+}
+
+
+type CaptchaChallenge = TextCaptcha | MathCaptcha | IconSequenceCaptcha | AudioCaptcha | PuzzleCaptcha | ColorCaptcha;
 
 function generateTextCaptcha(length = 6): TextCaptcha {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -177,6 +188,29 @@ function generatePuzzleCaptcha(): PuzzleCaptcha {
     };
 }
 
+const ALL_COLORS: ColorInfo[] = [
+    { name: 'Red', hex: '#ef4444' },
+    { name: 'Green', hex: '#22c55e' },
+    { name: 'Blue', hex: '#3b82f6' },
+    { name: 'Yellow', hex: '#eab308' },
+    { name: 'Purple', hex: '#a855f7' },
+    { name: 'Orange', hex: '#f97316' },
+    { name: 'Pink', hex: '#ec4899' },
+    { name: 'Cyan', hex: '#06b6d4' },
+];
+
+function generateColorCaptcha(): ColorCaptcha {
+    const shuffled = [...ALL_COLORS].sort(() => 0.5 - Math.random());
+    const target = shuffled[0];
+    const options = shuffled.slice(0, 6).sort(() => 0.5 - Math.random()); // Take 6 colors
+    return {
+        type: 'color',
+        target,
+        options,
+    };
+}
+
+
 interface UserData {
     coins: number;
 }
@@ -187,6 +221,7 @@ const TIMER_DURATIONS: Record<CaptchaType, number> = {
     'icon-sequence': 20,
     'audio': 20,
     'puzzle': 25,
+    'color': 15,
 };
 
 export function CaptchaCard() {
@@ -197,6 +232,7 @@ export function CaptchaCard() {
   const [userInput, setUserInput] = useState('');
   const [selectedIcons, setSelectedIcons] = useState<PositionedIcon[]>([]);
   const [puzzleSliderValue, setPuzzleSliderValue] = useState([10]);
+  const [selectedColor, setSelectedColor] = useState<ColorInfo | null>(null);
   const [replaysLeft, setReplaysLeft] = useState(2);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
@@ -211,7 +247,7 @@ export function CaptchaCard() {
   const { data: userData } = useDoc<UserData>(userDocRef);
 
   const generateNewChallenge = useCallback((resetStatus = true) => {
-    const captchaTypes: CaptchaType[] = ['text', 'math', 'icon-sequence', 'audio', 'puzzle'];
+    const captchaTypes: CaptchaType[] = ['text', 'math', 'icon-sequence', 'audio', 'puzzle', 'color'];
     const randomType = captchaTypes[Math.floor(Math.random() * captchaTypes.length)];
     
     let newChallenge: CaptchaChallenge;
@@ -231,12 +267,16 @@ export function CaptchaCard() {
       case 'puzzle':
         newChallenge = generatePuzzleCaptcha();
         break;
+      case 'color':
+        newChallenge = generateColorCaptcha();
+        break;
     }
     const duration = TIMER_DURATIONS[newChallenge.type];
     setChallenge(newChallenge);
     setUserInput('');
     setSelectedIcons([]);
     setPuzzleSliderValue([10]);
+    setSelectedColor(null);
     hasAudioPlayed.current = false;
     setReplaysLeft(2);
     setInitialTimer(duration);
@@ -370,6 +410,14 @@ export function CaptchaCard() {
             const sliderVal = puzzleSliderValue[0];
             // Allow a small tolerance
             isCorrect = Math.abs(sliderVal - challenge.targetX) < 2;
+            break;
+        }
+        case 'color': {
+            if (!selectedColor) {
+                toast({ variant: 'destructive', title: 'No Selection', description: 'Please select a color.' });
+                return;
+            }
+            isCorrect = selectedColor.hex === challenge.target.hex;
             break;
         }
     }
@@ -648,6 +696,31 @@ export function CaptchaCard() {
                             step={0.1}
                             disabled={isLoading || submissionStatus !== null}
                         />
+                    </div>
+                </div>
+            );
+        case 'color':
+            return (
+                <div className="space-y-4">
+                    <p className="text-center font-semibold">
+                        Tap the color: <span className="font-bold" style={{ color: challenge.target.hex }}>{challenge.target.name}</span>
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 h-48">
+                        {challenge.options.map((color, index) => (
+                            <div
+                                key={index}
+                                onClick={() => setSelectedColor(color)}
+                                className={cn(
+                                    "w-full h-full rounded-lg cursor-pointer transition-all flex items-center justify-center",
+                                    selectedColor?.hex === color.hex && 'ring-2 ring-primary'
+                                )}
+                                style={{ backgroundColor: color.hex }}
+                            >
+                                {selectedColor?.hex === color.hex && (
+                                    <CheckCircle2 className="h-8 w-8 text-white" />
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
