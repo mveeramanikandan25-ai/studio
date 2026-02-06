@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { useUser, useFirestore, useDoc, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { doc, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, RefreshCw, Coins, Check, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Coins, CheckCircle2, XCircle, Apple, Banana, Car, Plane, Dog, Cat, Heart, Star, Cloud, Sun, Moon, Rocket, Home, Key, Ghost, Bomb, Bug, Anchor, Bike, RotateCcw } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -18,7 +18,7 @@ const FullScreenAd = dynamic(() => import('@/components/ui/full-screen-ad').then
 
 // --- CAPTCHA Types and Generators ---
 
-type CaptchaType = 'text' | 'math';
+type CaptchaType = 'text' | 'math' | 'icon-sequence';
 
 interface TextCaptcha {
   type: 'text';
@@ -31,7 +31,38 @@ interface MathCaptcha {
   answer: number;
 }
 
-type CaptchaChallenge = TextCaptcha | MathCaptcha;
+// --- Icon CAPTCHA Types and Generators ---
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+interface IconInfo {
+  id: string;
+  Icon: IconComponent;
+}
+
+const ALL_ICONS: IconInfo[] = [
+  { id: 'apple', Icon: Apple }, { id: 'banana', Icon: Banana }, { id: 'car', Icon: Car },
+  { id: 'plane', Icon: Plane }, { id: 'dog', Icon: Dog }, { id: 'cat', Icon: Cat },
+  { id: 'heart', Icon: Heart }, { id: 'star', Icon: Star }, { id: 'cloud', Icon: Cloud },
+  { id: 'sun', Icon: Sun }, { id: 'moon', Icon: Moon }, { id: 'rocket', Icon: Rocket },
+  { id: 'home', Icon: Home }, { id: 'key', Icon: Key }, { id: 'ghost', Icon: Ghost },
+  { id: 'bomb', Icon: Bomb }, { id: 'bug', Icon: Bug }, { id: 'anchor', Icon: Anchor }, { id: 'bike', Icon: Bike },
+];
+
+
+interface PositionedIcon extends IconInfo {
+  x: number;
+  y: number;
+  rotation: number;
+  scale: number;
+}
+
+interface IconSequenceCaptcha {
+  type: 'icon-sequence';
+  sequence: IconInfo[];
+  options: PositionedIcon[];
+}
+
+type CaptchaChallenge = TextCaptcha | MathCaptcha | IconSequenceCaptcha;
 
 function generateTextCaptcha(length = 6): TextCaptcha {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -72,6 +103,45 @@ function generateMathCaptcha(): MathCaptcha {
     return { type: 'math', question, answer };
 }
 
+function generateIconSequenceCaptcha(): IconSequenceCaptcha {
+  const shuffledIcons = [...ALL_ICONS].sort(() => 0.5 - Math.random());
+
+  const sequenceLength = Math.floor(Math.random() * 2) + 3; // 3 or 4 icons in sequence
+  const sequence = shuffledIcons.slice(0, sequenceLength);
+
+  const numDistractors = Math.floor(Math.random() * 3) + 4; // 4 to 6 distractors
+  const distractors = shuffledIcons.slice(sequenceLength, sequenceLength + numDistractors);
+
+  const allOptions = [...sequence, ...distractors].sort(() => 0.5 - Math.random());
+
+  const options: PositionedIcon[] = allOptions.map(icon => ({
+    ...icon,
+    x: Math.random() * 85 + 7.5, // % position
+    y: Math.random() * 85 + 7.5,
+    rotation: Math.random() * 90 - 45,
+    scale: Math.random() * 0.3 + 0.9, // 0.9 to 1.2
+  }));
+
+  // Basic collision detection to spread icons out
+  for (let i = 0; i < options.length; i++) {
+    for (let j = i + 1; j < options.length; j++) {
+      const dist = Math.hypot(options[i].x - options[j].x, options[i].y - options[j].y);
+      if (dist < 18) { // Minimum 18% distance between centers
+        options[j].x = Math.random() * 85 + 7.5;
+        options[j].y = Math.random() * 85 + 7.5;
+        i = 0; // Restart check
+        j = options.length; // Break inner loop
+      }
+    }
+  }
+
+  return {
+    type: 'icon-sequence',
+    sequence,
+    options,
+  };
+}
+
 interface UserData {
     coins: number;
 }
@@ -79,6 +149,7 @@ interface UserData {
 const TIMER_DURATIONS: Record<CaptchaType, number> = {
     math: 10,
     text: 15,
+    'icon-sequence': 20,
 };
 
 export function CaptchaCard() {
@@ -87,6 +158,7 @@ export function CaptchaCard() {
   const { toast } = useToast();
   const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [userInput, setUserInput] = useState('');
+  const [selectedIcons, setSelectedIcons] = useState<PositionedIcon[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'correct' | 'incorrect' | null>(null);
@@ -99,7 +171,7 @@ export function CaptchaCard() {
   const { data: userData } = useDoc<UserData>(userDocRef);
 
   const generateNewChallenge = useCallback((resetStatus = true) => {
-    const captchaTypes: CaptchaType[] = ['text', 'math'];
+    const captchaTypes: CaptchaType[] = ['text', 'math', 'icon-sequence'];
     const randomType = captchaTypes[Math.floor(Math.random() * captchaTypes.length)];
     
     let newChallenge: CaptchaChallenge;
@@ -110,10 +182,14 @@ export function CaptchaCard() {
       case 'math':
         newChallenge = generateMathCaptcha();
         break;
+      case 'icon-sequence':
+        newChallenge = generateIconSequenceCaptcha();
+        break;
     }
     const duration = TIMER_DURATIONS[newChallenge.type];
     setChallenge(newChallenge);
     setUserInput('');
+    setSelectedIcons([]);
     setInitialTimer(duration);
     setTimer(duration);
     if (resetStatus) {
@@ -178,9 +254,17 @@ export function CaptchaCard() {
     }
   };
   
+  const handleIconClick = (icon: PositionedIcon) => {
+      if (isLoading || submissionStatus) return;
+      
+      if (challenge?.type === 'icon-sequence' && selectedIcons.length >= challenge.sequence.length) {
+          return;
+      }
+      setSelectedIcons(prev => [...prev, icon]);
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+
+  const handleSubmit = async () => {
     if (!user || !challenge || !userDocRef || isLoading || submissionStatus) return;
 
     let isCorrect = false;
@@ -199,6 +283,14 @@ export function CaptchaCard() {
             }
             isCorrect = parseInt(userInput, 10) === challenge.answer;
             break;
+        case 'icon-sequence': {
+            if (selectedIcons.length !== challenge.sequence.length) {
+                isCorrect = false;
+            } else {
+                isCorrect = selectedIcons.every((icon, index) => icon.id === challenge.sequence[index].id);
+            }
+            break;
+        }
     }
 
     if (isCorrect) {
@@ -312,7 +404,7 @@ export function CaptchaCard() {
                             placeholder="Enter CAPTCHA here"
                             value={userInput}
                             onChange={(e) => setUserInput(e.target.value)}
-                            disabled={isLoading}
+                            disabled={isLoading || submissionStatus !== null}
                             required
                             autoCapitalize="off"
                             autoCorrect="off"
@@ -336,7 +428,7 @@ export function CaptchaCard() {
                             placeholder="Your answer"
                             value={userInput}
                             onChange={(e) => setUserInput(e.target.value)}
-                            disabled={isLoading}
+                            disabled={isLoading || submissionStatus !== null}
                             required
                             className="text-center tracking-widest font-mono"
                         />
@@ -346,8 +438,67 @@ export function CaptchaCard() {
                     </div>
                 </div>
             );
+        case 'icon-sequence':
+            return (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between rounded-lg bg-muted p-2">
+                        <p className="text-sm font-medium">Select in this order:</p>
+                        <div className="flex items-center gap-2">
+                            {challenge.sequence.map(({ Icon, id }, index) => (
+                                <div key={`${id}-${index}`} className="p-1 bg-background/50 rounded-md shadow-inner">
+                                    <Icon className="h-5 w-5 text-primary" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="relative w-full h-64 bg-muted/30 rounded-lg overflow-hidden border">
+                         <Image src="https://picsum.photos/seed/space/400/300" layout="fill" objectFit="cover" alt="Challenge background" className="opacity-20 blur-[2px]" />
+                        {challenge.options.map((icon, index) => {
+                            const { Icon, id, x, y, rotation, scale } = icon;
+                            const selectionIndex = selectedIcons.findIndex(i => i === icon);
+                            const isSelected = selectionIndex !== -1;
+
+                            return (
+                                <div
+                                    key={`${id}-${index}`}
+                                    className={cn(
+                                        "absolute flex items-center justify-center p-2 rounded-lg bg-card/80 backdrop-blur-sm cursor-pointer transition-all duration-200 hover:scale-110 hover:!opacity-100",
+                                        isSelected ? "ring-2 ring-primary opacity-100" : "opacity-80"
+                                    )}
+                                    style={{
+                                        left: `${x}%`,
+                                        top: `${y}%`,
+                                        transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`,
+                                    }}
+                                    onClick={() => handleIconClick(icon)}
+                                >
+                                    <Icon className="h-8 w-8 text-foreground" />
+                                    {isSelected && (
+                                        <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground h-5 w-5 text-xs rounded-full flex items-center justify-center font-bold animate-pop-in">
+                                            {selectionIndex + 1}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                     <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" className="w-full" onClick={() => setSelectedIcons([])} disabled={isLoading || submissionStatus !== null || selectedIcons.length === 0}>
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            Clear Selection
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={handleRefresh} disabled={isLoading || retries <= 1}>
+                            <RefreshCw className="h-5 w-5" />
+                        </Button>
+                    </div>
+                </div>
+            );
     }
   };
+
+  const submitButtonText = challenge?.type === 'icon-sequence'
+    ? 'Check Sequence & Earn 25 Coins'
+    : 'Submit & Earn 25 Coins';
 
   return (
     <>
@@ -372,7 +523,7 @@ export function CaptchaCard() {
             </div>
           </div>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        
           <CardContent className="space-y-4">
              <div className="space-y-2">
                 <Progress value={(timer / initialTimer) * 100} className="h-2" indicatorClassName={getTimerIndicatorClass()} />
@@ -384,12 +535,12 @@ export function CaptchaCard() {
             {renderChallenge()}
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading || submissionStatus !== null}>
+            <Button onClick={handleSubmit} className="w-full" disabled={isLoading || submissionStatus !== null}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Submit & Earn 25 Coins
+              {submitButtonText}
             </Button>
           </CardFooter>
-        </form>
+        
       </Card>
       {isAdOpen && <FullScreenAd open={isAdOpen} onClose={handleAdClose} />}
     </>
