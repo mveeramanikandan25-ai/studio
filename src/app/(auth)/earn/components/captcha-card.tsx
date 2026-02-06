@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useUser, useFirestore, useDoc, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { doc, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, RefreshCw, Coins, CheckCircle2, XCircle, Apple, Banana, Car, Plane, Dog, Cat, Heart, Star, Cloud, Sun, Moon, Rocket, Home, Key, Ghost, Bomb, Bug, Anchor, Bike, RotateCcw } from 'lucide-react';
+import { Loader2, RefreshCw, Coins, CheckCircle2, XCircle, Apple, Banana, Car, Plane, Dog, Cat, Heart, Star, Cloud, Sun, Moon, Rocket, Home, Key, Ghost, Bomb, Bug, Anchor, Bike, RotateCcw, Play, Volume2 } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
@@ -18,7 +18,7 @@ const FullScreenAd = dynamic(() => import('@/components/ui/full-screen-ad').then
 
 // --- CAPTCHA Types and Generators ---
 
-type CaptchaType = 'text' | 'math' | 'icon-sequence';
+type CaptchaType = 'text' | 'math' | 'icon-sequence' | 'audio';
 
 interface TextCaptcha {
   type: 'text';
@@ -62,7 +62,13 @@ interface IconSequenceCaptcha {
   options: PositionedIcon[];
 }
 
-type CaptchaChallenge = TextCaptcha | MathCaptcha | IconSequenceCaptcha;
+interface AudioCaptcha {
+  type: 'audio';
+  text: string;
+}
+
+
+type CaptchaChallenge = TextCaptcha | MathCaptcha | IconSequenceCaptcha | AudioCaptcha;
 
 function generateTextCaptcha(length = 6): TextCaptcha {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -142,6 +148,16 @@ function generateIconSequenceCaptcha(): IconSequenceCaptcha {
   };
 }
 
+function generateAudioCaptcha(): AudioCaptcha {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let text = '';
+  const length = Math.floor(Math.random() * 3) + 3; // 3-5 chars
+  for (let i = 0; i < length; i++) {
+    text += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return { type: 'audio', text };
+}
+
 interface UserData {
     coins: number;
 }
@@ -150,6 +166,7 @@ const TIMER_DURATIONS: Record<CaptchaType, number> = {
     math: 10,
     text: 15,
     'icon-sequence': 20,
+    'audio': 20,
 };
 
 export function CaptchaCard() {
@@ -159,19 +176,21 @@ export function CaptchaCard() {
   const [challenge, setChallenge] = useState<CaptchaChallenge | null>(null);
   const [userInput, setUserInput] = useState('');
   const [selectedIcons, setSelectedIcons] = useState<PositionedIcon[]>([]);
+  const [replaysLeft, setReplaysLeft] = useState(2);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdOpen, setIsAdOpen] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'correct' | 'incorrect' | null>(null);
   const [retries, setRetries] = useState(3);
   const [timer, setTimer] = useState(TIMER_DURATIONS.text);
   const [initialTimer, setInitialTimer] = useState(TIMER_DURATIONS.text);
+  const hasAudioPlayed = useRef(false);
 
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
   const { data: userData } = useDoc<UserData>(userDocRef);
 
   const generateNewChallenge = useCallback((resetStatus = true) => {
-    const captchaTypes: CaptchaType[] = ['text', 'math', 'icon-sequence'];
+    const captchaTypes: CaptchaType[] = ['text', 'math', 'icon-sequence', 'audio'];
     const randomType = captchaTypes[Math.floor(Math.random() * captchaTypes.length)];
     
     let newChallenge: CaptchaChallenge;
@@ -185,11 +204,16 @@ export function CaptchaCard() {
       case 'icon-sequence':
         newChallenge = generateIconSequenceCaptcha();
         break;
+      case 'audio':
+        newChallenge = generateAudioCaptcha();
+        break;
     }
     const duration = TIMER_DURATIONS[newChallenge.type];
     setChallenge(newChallenge);
     setUserInput('');
     setSelectedIcons([]);
+    hasAudioPlayed.current = false;
+    setReplaysLeft(2);
     setInitialTimer(duration);
     setTimer(duration);
     if (resetStatus) {
@@ -263,6 +287,22 @@ export function CaptchaCard() {
       setSelectedIcons(prev => [...prev, icon]);
   };
 
+  const handleReplayAudio = () => {
+    if (challenge?.type === 'audio' && 'speechSynthesis' in window) {
+      if (hasAudioPlayed.current && replaysLeft <= 0) return;
+
+      const utterance = new SpeechSynthesisUtterance(challenge.text);
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+
+      if (hasAudioPlayed.current) {
+        setReplaysLeft(r => r - 1);
+      } else {
+        hasAudioPlayed.current = true;
+      }
+    }
+  };
+
 
   const handleSubmit = async () => {
     if (!user || !challenge || !userDocRef || isLoading || submissionStatus) return;
@@ -291,6 +331,14 @@ export function CaptchaCard() {
             }
             break;
         }
+        case 'audio': {
+            if (userInput.trim() === '') {
+                toast({ variant: 'destructive', title: 'Empty Input', description: 'Please enter what you heard.' });
+                return;
+            }
+            isCorrect = userInput.trim().toUpperCase() === challenge.text.toUpperCase();
+            break;
+        }
     }
 
     if (isCorrect) {
@@ -310,6 +358,7 @@ export function CaptchaCard() {
             setIsAdOpen(true);
             setIsLoading(false);
             setRetries(3); // Reset retries
+            setReplaysLeft(2);
             generateNewChallenge(false);
         }, 1500);
     } else {
@@ -493,12 +542,43 @@ export function CaptchaCard() {
                     </div>
                 </div>
             );
+        case 'audio':
+            return (
+                <div className="space-y-4">
+                    <div className="rounded-lg bg-muted p-4 h-[100px] flex items-center justify-center gap-4">
+                       <p className="text-center text-muted-foreground">Press the button and type what you hear.</p>
+                    </div>
+                    <div className="flex items-center justify-center gap-4">
+                        <Button size="icon" variant="ghost" className="h-20 w-20" onClick={handleReplayAudio} disabled={hasAudioPlayed.current && replaysLeft <= 0}>
+                            <Play className="h-10 w-10 text-primary" />
+                        </Button>
+                        <div className="flex flex-col items-center">
+                            <Volume2 className="h-6 w-6 text-primary" />
+                            <span className="text-xs text-muted-foreground">{replaysLeft} replays left</span>
+                        </div>
+                    </div>
+                    <Input
+                        type="text"
+                        placeholder="Type what you hear"
+                        value={userInput}
+                        onChange={(e) => setUserInput(e.target.value)}
+                        disabled={isLoading || submissionStatus !== null}
+                        required
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        className="text-center tracking-widest font-mono"
+                    />
+                </div>
+            );
     }
   };
 
-  const submitButtonText = challenge?.type === 'icon-sequence'
-    ? 'Check Sequence & Earn 25 Coins'
-    : 'Submit & Earn 25 Coins';
+  const getSubmitButtonText = () => {
+    if (challenge?.type === 'icon-sequence') {
+      return 'Check Sequence & Earn 25 Coins';
+    }
+    return 'Submit & Earn 25 Coins';
+  };
 
   return (
     <>
@@ -537,7 +617,7 @@ export function CaptchaCard() {
           <CardFooter>
             <Button onClick={handleSubmit} className="w-full" disabled={isLoading || submissionStatus !== null}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {submitButtonText}
+              {getSubmitButtonText()}
             </Button>
           </CardFooter>
         
