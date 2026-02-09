@@ -5,6 +5,7 @@ import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2, Coins } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -62,13 +63,13 @@ export default function Home() {
 
         <p className="px-8 text-center text-xs text-muted-foreground/80">
           By continuing, you agree to our{' '}
-          <a href="/terms" className="underline underline-offset-4 hover:text-primary">
+          <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
             Terms of Service
-          </a>{' '}
+          </Link>{' '}
           and{' '}
-          <a href="/privacy" className="underline underline-offset-4 hover:text-primary">
+          <Link href="/privacy" className="underline underline-offset-4 hover:text-primary">
             Privacy Policy
-          </a>
+          </Link>
           .
         </p>
       </div>
